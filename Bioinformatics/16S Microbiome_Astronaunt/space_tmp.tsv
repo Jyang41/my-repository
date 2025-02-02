@@ -1,0 +1,92 @@
+sample-id	Factor Value: Time	Parameter Value: Sample Collection Timepoint	Parameter Value: Sample Storage Temperature
+SRR8985933	pre-flight	240 days before launch	-80 degree Celsius
+SRR8985934	pre-flight	240 days before launch	-80 degree Celsius
+SRR8985931	pre-flight	180 days before launch	-80 degree Celsius
+SRR8985932	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985929	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985930	during flight	7 days on ISS	-80 degree Celsius
+SRR8985927	during flight	90 days on ISS	-80 degree Celsius
+SRR8985928	during flight	14 days before return	-80 degree Celsius
+SRR8985935	during flight	1 day before return	-80 degree Celsius
+SRR8985936	post-flight	landing day	-80 degree Celsius
+SRR8985894	post-flight	landing day	-80 degree Celsius
+SRR8985895	post-flight	18 days after return	-80 degree Celsius
+SRR8985892	post-flight	33 days after return	-80 degree Celsius
+SRR8985893	post-flight	63 days after return	-80 degree Celsius
+SRR8985890	post-flight	180 days after return	-80 degree Celsius
+SRR8985891	pre-flight	180 days before launch	-80 degree Celsius
+SRR8985888	pre-flight	150 days before launch	-80 degree Celsius
+SRR8985889	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985886	during flight	10 days on ISS	-80 degree Celsius
+SRR8985887	during flight	90 days on ISS	-80 degree Celsius
+SRR8985954	post-flight	1 day after return	-80 degree Celsius
+SRR8985953	post-flight	18 days after return	-80 degree Celsius
+SRR8985952	post-flight	33 days after return	-80 degree Celsius
+SRR8985951	post-flight	60 days after return	-80 degree Celsius
+SRR8985950	pre-flight	180 days before launch	-80 degree Celsius
+SRR8985949	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985948	during flight	10 days on ISS	-80 degree Celsius
+SRR8985947	during flight	90 days on ISS	-80 degree Celsius
+SRR8985956	post-flight	landing day	-80 degree Celsius
+SRR8985955	post-flight	18 days after return	-80 degree Celsius
+SRR8985957	post-flight	33 days after return	-80 degree Celsius
+SRR8985958	post-flight	63 days after return	-80 degree Celsius
+SRR8985959	pre-flight	180 days before launch	-80 degree Celsius
+SRR8985960	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985961	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985962	during flight	10 days on ISS	-80 degree Celsius
+SRR8985963	during flight	90 days on ISS	-80 degree Celsius
+SRR8985964	during flight	1 day before return	-80 degree Celsius
+SRR8985965	post-flight	landing day	-80 degree Celsius
+SRR8985966	post-flight	18 days after return	-80 degree Celsius
+SRR8985918	post-flight	30 days after return	-80 degree Celsius
+SRR8985917	post-flight	63 days after return	-80 degree Celsius
+SRR8985920	post-flight	180 days after return	-80 degree Celsius
+SRR8985919	pre-flight	120 days before launch	-80 degree Celsius
+SRR8985922	pre-flight	120 days before launch	-80 degree Celsius
+SRR8985921	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985924	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985923	during flight	10 days on ISS	-80 degree Celsius
+SRR8985926	during flight	90 days on ISS	-80 degree Celsius
+SRR8985925	pre-flight	14 days before return	-80 degree Celsius
+SRR8985939	post-flight	landing day	-80 degree Celsius
+SRR8985940	post-flight	30 days after return	-80 degree Celsius
+SRR8985937	post-flight	60 days after return	-80 degree Celsius
+SRR8985938	post-flight	60 days after return	-80 degree Celsius
+SRR8985943	post-flight	180 days after return	-80 degree Celsius
+SRR8985944	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985941	during flight	10 days on ISS	-80 degree Celsius
+SRR8985942	during flight	90 days on ISS	-80 degree Celsius
+SRR8985945	pre-flight	14 days before return	-80 degree Celsius
+SRR8985946	post-flight	landing day	-80 degree Celsius
+SRR8985902	post-flight	60 days after return	-80 degree Celsius
+SRR8985901	post-flight	180 days after return	-80 degree Celsius
+SRR8985900	pre-flight	180 days before launch	-80 degree Celsius
+SRR8985899	pre-flight	120 days before launch	-80 degree Celsius
+SRR8985906	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985905	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985904	during flight	10 days on ISS	-80 degree Celsius
+SRR8985903	during flight	90 days on ISS	-80 degree Celsius
+SRR8985898	pre-flight	14 days before return	-80 degree Celsius
+SRR8985897	post-flight	landing day	-80 degree Celsius
+SRR8985911	post-flight	30 days after return	-80 degree Celsius
+SRR8985912	post-flight	60 days after return	-80 degree Celsius
+SRR8985913	post-flight	180 days after return	-80 degree Celsius
+SRR8985914	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985907	during flight	10 days on ISS	-80 degree Celsius
+SRR8985908	during flight	90 days on ISS	-80 degree Celsius
+SRR8985909	post-flight	landing day	-80 degree Celsius
+SRR8985910	post-flight	180 days after return	-80 degree Celsius
+SRR8985915	post-flight	33 days after return	-80 degree Celsius
+SRR8985916	post-flight	63 days after return	-80 degree Celsius
+SRR8985972	pre-flight	90 days before launch	-80 degree Celsius
+SRR8985971	during flight	10 days on ISS	-80 degree Celsius
+SRR8985974	during flight	90 days on ISS	-80 degree Celsius
+SRR8985973	post-flight	1 day after return	-80 degree Celsius
+SRR8985968	post-flight	18 days after return	-80 degree Celsius
+SRR8985967	post-flight	60 days after return	-80 degree Celsius
+SRR8985970	pre-flight	60 days before launch	-80 degree Celsius
+SRR8985969	during flight	90 days on ISS	-80 degree Celsius
+SRR8985976	post-flight	180 days after return	-80 degree Celsius
+SRR8985975	not applicable	not applicable	-80 degree Celsius
+SRR8985896	not applicable	not applicable	-80 degree Celsius
