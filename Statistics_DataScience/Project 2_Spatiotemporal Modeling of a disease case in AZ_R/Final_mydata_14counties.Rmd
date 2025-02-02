@@ -1,0 +1,697 @@
+---
+title: "Final_mydata_14counties"
+author: "Jiseon Yang"
+date: "2024-11-29"
+output: word_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load data
+```{r}
+
+
+# Load libraries
+library(sf)
+library(spdep)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(tmap)
+
+# Load your dataset
+final_data <- read.csv("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/Final_data.csv")
+
+# Preview the dataset structure
+str(final_data)
+
+
+
+
+```
+
+
+### Step 2: Adjust Dataset for Spatial Analysis
+```{r}
+
+# Filter counties (excluding "Greenlee")
+az_counties <- c(
+  "Apache", "Cochise", "Coconino", "Gila", "Graham",
+  "La Paz", "Maricopa", "Mohave", "Navajo", "Pima", 
+  "Pinal", "Santa Cruz", "Yavapai", "Yuma"
+)
+
+# Verify the dataset includes only these counties
+final_data <- final_data %>% filter(County %in% az_counties)
+
+# Aggregate data (if needed, by Year and Month)
+agg_data <- final_data %>%
+  group_by(County, Year, Month) %>%
+  summarize(
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    HUM_AVG = mean(HUM_AVG, na.rm = TRUE),
+    WIND_AVG = mean(WIND_AVG, na.rm = TRUE),
+    PM10 = mean(PM10, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+```
+
+
+### Step 3: Load and Prepare Shapefile
+```{r}
+
+# Load Arizona counties shapefile
+shapefile_path <- "C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/tl_2024_us_county/az_counties.shp"
+az_counties_sf <- st_read(shapefile_path)
+
+# Filter shapefile to match dataset counties (excluding "Greenlee")
+az_counties_sf <- az_counties_sf %>% filter(NAME %in% az_counties)
+
+# Join aggregated data to shapefile
+az_combined <- az_counties_sf %>%
+  left_join(agg_data, by = c("NAME" = "County"))
+
+# Check for mismatches in county names
+setdiff(az_counties_sf$NAME, unique(agg_data$County))  # Counties in shapefile but not in agg_data
+setdiff(unique(agg_data$County), az_counties_sf$NAME)  # Counties in agg_data but not in shapefile
+
+
+```
+
+
+### Step 4: Visualize Data
+```{r}
+
+# Plot PM10 levels
+ggplot(data = az_combined) +
+  geom_sf(aes(fill = PM10), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "PM10 Levels by County",
+       fill = "PM10 (µg/m³)") +
+  theme_minimal()
+```
+
+
+### Step 5: Spatial Autocorrelation
+
+
+```{r}
+
+# Create neighbors list and weights matrix
+nb <- poly2nb(az_counties_sf, queen = TRUE)
+lw <- nb2listw(nb, style = "W")
+
+# Moran's I for PM10
+county_pm10 <- agg_data %>%
+  group_by(County) %>%
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Ensure order matches shapefile
+county_pm10 <- county_pm10 %>%
+  arrange(match(County, az_counties_sf$NAME))
+
+# Run Moran's I
+moran_test <- moran.test(county_pm10$PM10_mean, lw)
+print(moran_test)
+
+
+```
+
+
+### Step 6: Temporal Analysis
+```{r}
+
+# Aggregate cases over time
+time_series <- final_data %>%
+  group_by(Year) %>%
+  summarize(Cases = sum(Cases))
+
+# Plot time series
+ggplot(time_series, aes(x = Year, y = Cases)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Disease Cases Over Time",
+       x = "Year", y = "Cases")
+
+# Aggregate cases over time
+time_series <- final_data %>%
+  group_by(Month) %>%
+  summarize(Cases = sum(Cases))
+
+# Plot time series
+ggplot(time_series, aes(x = Month, y = Cases)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Disease Cases Over Time",
+       x = "Month", y = "Cases")
+
+```
+
+
+### Step 7: Regression Modeling
+```{r}
+
+# Linear model: PM10 and temperature predicting cases
+lm_model <- lm(Cases ~ PM10 + TEMP_AVG + HUM_AVG + WIND_AVG, data = agg_data)
+summary(lm_model)
+
+
+```
+
+
+### Step 8: Spatial Regression (Lag and Error Models)
+```{r}
+# Summarize PM10 and include other variables
+county_pm10 <- agg_data %>%
+  group_by(County) %>%
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    HUM_AVG = mean(HUM_AVG, na.rm = TRUE),
+    WIND_AVG = mean(WIND_AVG, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Ensure county order matches the spatial weights matrix
+county_pm10 <- county_pm10 %>%
+  arrange(match(County, az_counties_sf$NAME))
+
+
+library(spatialreg) 
+
+# Spatial Lag Model
+lag_model <- lagsarlm(PM10_mean ~ TEMP_AVG + HUM_AVG + WIND_AVG, data = county_pm10, listw = lw)
+
+# Summarize the model
+summary(lag_model)
+
+
+# Spatial Error Model
+error_model <- errorsarlm(PM10_mean ~ TEMP_AVG + HUM_AVG + WIND_AVG, data = county_pm10, listw = lw)
+summary(error_model)
+
+# Compare AIC values
+AIC(lag_model, error_model)
+
+
+```
+
+
+
+
+
+
+### Step 9: Spatiotemporal Modeling with INLA
+
+
+```{r}
+
+library(INLA)
+# Create county-level aggregated data
+obs <- agg_data %>%
+  group_by(County, Year) %>%
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+# Create adjacency graph with correct order
+nb <- poly2nb(az_counties_sf, queen = TRUE)
+adj_matrix <- nb2mat(nb, style = "B", zero.policy = TRUE)
+rownames(adj_matrix) <- az_counties_sf$NAME
+graph <- inla.read.graph(adj_matrix)
+
+
+# Convert County to a factor, ensuring levels match the adjacency matrix
+obs$County <- factor(obs$County, levels = rownames(adj_matrix))
+
+
+# Check for mismatches
+setdiff(levels(obs$County), rownames(adj_matrix)) # Counties in data but not in adjacency matrix
+setdiff(rownames(adj_matrix), levels(obs$County)) # Counties in adjacency matrix but not in data
+
+
+# Ensure the graph's nodes match County levels
+stopifnot(all(levels(obs$County) %in% rownames(adj_matrix)))
+
+# Fit INLA model
+# formula <- Cases ~ TEMP_AVG + PM10_mean +
+#            f(County, model = "bym", graph = graph) +
+#            f(Year, model = "rw1")
+
+formula <- Cases ~ TEMP_AVG + PM10_mean +
+           f(County, model = "iid") +  # Temporarily use iid for spatial effect
+           f(Year, model = "rw1")     # Retain temporal random walk
+
+
+fit_inla <- inla(
+  formula,
+  family = "poisson",
+  data = obs,
+  control.predictor = list(compute = TRUE)
+)
+
+
+# Summarize results
+summary(fit_inla)
+
+
+```
+
+
+#### 
+
+
+
+
+```{r}
+print(adj_matrix)
+```
+
+
+
+```{r}
+class(az_counties)  # Should include "sf"
+colnames(az_counties)  # Should include "NAME" for county names
+
+az_counties <- st_read("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/tl_2024_us_county/az_counties.shp")
+
+library(ggplot2)
+library(sf)
+
+# Ensure az_counties is an sf object with a column "NAME" for county names
+ggplot(data = az_counties) +
+  geom_sf(fill = "lightblue", color = "white") +  # Draw the map
+  geom_sf_text(aes(label = NAME), size = 3, color = "black") +  # Add county names
+  labs(title = "Arizona Counties",
+       subtitle = "County names labeled on the map") +
+  theme_minimal()
+
+```
+
+
+
+
+
+```{r}
+# Load required libraries
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(tmap)
+library(INLA)
+library(fields)
+library(spdep)
+
+# Load your dataset
+final_data <- read.csv("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/Final_data.csv")
+
+# Preview the dataset structure
+str(final_data)
+
+# Define the list of Arizona counties
+az_counties <- c(
+  "Apache", "Cochise", "Coconino", "Gila", "Graham",
+  "La Paz", "Maricopa", "Mohave", "Navajo", "Pima",
+  "Pinal", "Santa Cruz", "Yavapai", "Yuma"
+)
+
+# Filter the dataset to include only these counties
+final_data <- final_data %>% filter(County %in% az_counties)
+
+# Aggregate the data by Year and Month
+agg_data <- final_data %>%
+  group_by(County, Year, Month) %>%
+  summarize(
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    HUM_AVG = mean(HUM_AVG, na.rm = TRUE),
+    WIND_AVG = mean(WIND_AVG, na.rm = TRUE),
+    PM10 = mean(PM10, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Load Arizona counties shapefile
+shapefile_path <- "C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/tl_2024_us_county/az_counties.shp"
+az_counties_sf <- st_read(shapefile_path)
+
+# Filter shapefile to match the dataset counties
+az_counties_sf <- az_counties_sf %>% filter(NAME %in% az_counties)
+
+# Join aggregated data with the shapefile
+az_combined <- az_counties_sf %>%
+  left_join(agg_data, by = c("NAME" = "County"))
+
+# Ensure there are no mismatches in the join
+setdiff(az_counties_sf$NAME, unique(agg_data$County))  # Should return character(0)
+setdiff(unique(agg_data$County), az_counties_sf$NAME)  # Should return character(0)
+
+# Create neighbors list and spatial weights matrix
+nb <- poly2nb(az_counties_sf, queen = TRUE)
+lw <- nb2listw(nb, style = "W")
+
+# Plot PM10 levels across counties
+ggplot(data = az_combined) +
+  geom_sf(aes(fill = PM10), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "PM10 Levels by County",
+       fill = "PM10 (µg/m³)") +
+  theme_minimal()
+```
+
+
+```{r}
+# Temporal trend plot for disease cases
+library(gridExtra)
+
+# Plot for Yearly Cases
+time_series <- final_data %>%
+  group_by(Year) %>%
+  summarize(Cases = sum(Cases))
+
+
+plot_year <- ggplot(time_series, aes(x = Year, y = Cases)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Disease Cases Over Time",
+       x = "Yearh", y = "Cases")
+
+# Plot for Monthly Cases
+time_series <- final_data %>%
+  group_by(Month) %>%
+  summarize(Cases = sum(Cases))
+
+plot_month <- ggplot(time_series, aes(x = Month, y = Cases)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = seq(1, 12, by = 1)) + # Ensures every month is displayed
+  labs(title = "Disease Cases Over Time",
+       x = "Month", y = "Cases")
+
+grid.arrange(plot_year, plot_month, ncol = 2)
+
+```
+
+
+
+```{r}
+# Prepare for Spatiotemporal Modeling with INLA
+obs <- agg_data %>%
+  group_by(County, Year) %>%
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Convert County to a factor and ensure levels match adjacency matrix
+obs$County <- factor(obs$County, levels = az_counties_sf$NAME)
+
+# Ensure adjacency matrix matches the data
+adj_matrix <- nb2mat(nb, style = "B", zero.policy = TRUE)
+rownames(adj_matrix) <- az_counties_sf$NAME
+graph <- inla.read.graph(adj_matrix)
+
+# Fit INLA spatiotemporal model
+formula <- Cases ~ TEMP_AVG + PM10_mean +
+           f(County, model = "iid") +  # Temporarily use iid for spatial effect
+           f(Year, model = "rw1")     # Retain temporal random walk
+
+fit_inla <- inla(
+  formula,
+  family = "poisson",
+  data = obs,
+  control.predictor = list(compute = TRUE)
+)
+
+# Summarize INLA results
+summary(fit_inla)
+
+```
+
+
+
+
+
+```{r}
+
+# Add predicted cases to the dataset for visualization
+obs$Cases_pred <- fit_inla$summary.fitted.values$mean
+
+# Join predicted cases back to the spatial dataset
+az_combined <- az_combined %>%
+  left_join(obs %>% select(County, Cases_pred), by = c("NAME" = "County"))
+
+# Plot predicted cases
+ggplot(data = az_combined) +
+  geom_sf(aes(fill = Cases_pred), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "Predicted Cases by County",
+       fill = "Predicted Cases") +
+  theme_minimal()
+
+```
+
+################################################
+#Impact of Seasonality on Research Modeling
+
+1. Time Series Models :ARIMA with Seasonality
+```{r}
+# install.packages("forecast")
+library(forecast)
+
+maricopa_pm10 <- ts(final_data$PM10[final_data$County == "Maricopa"], frequency = 12)
+sarima_model <- auto.arima(maricopa_pm10, seasonal = TRUE)
+summary(sarima_model)
+
+
+library(astsa)
+
+
+
+# Plot and decompose
+plot(maricopa_pm10, main = "PM10 Levels in Maricopa")
+decompose(maricopa_pm10)
+
+```
+
+
+2. Spatiotemporal Models (e.g., INLA)
+```{r}
+obs <- agg_data %>%
+  group_by(County, Year, Month) %>%  # Include Month in the grouping
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+obs$Month <- as.numeric(obs$Month)  # Ensure Month is numeric
+obs$Month <- factor(obs$Month, levels = 1:12)  # Convert to factor if required
+
+formula <- Cases ~ TEMP_AVG + PM10_mean +
+           f(County, model = "iid") +  # Spatial effect
+           f(Year, model = "rw1") +   # Long-term trend
+           f(Month, model = "rw1", cyclic = TRUE)  # Seasonal effect
+
+fit_inla <- inla(
+  formula,
+  family = "poisson",
+  data = obs,
+  control.predictor = list(compute = TRUE)
+)
+
+summary(fit_inla)
+
+
+```
+
+
+Visualize Predicted Cases
+```{r}
+obs$Cases_pred <- fit_inla$summary.fitted.values$mean
+
+# Join predictions back to spatial data
+az_combined <- az_counties_sf %>%
+  left_join(obs, by = c("NAME" = "County"))
+
+# Plot predicted cases
+ggplot(data = az_combined) +
+  geom_sf(aes(fill = Cases_pred), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "Predicted Cases with Seasonal Effect",
+       fill = "Predicted Cases") +
+  theme_minimal()
+
+```
+
+
+
+1. ARIMA Model for Temporal Patterns in PM10
+```{r}
+
+# Subset PM10 time series for Maricopa County
+maricopa_pm10 <- ts(obs$PM10_mean[obs$County == "Maricopa"], frequency = 12, start = c(2000, 1))
+
+# Fit a SARIMA model
+sarima_model <- astsa::sarima(maricopa_pm10, p = 1, d = 1, q = 1, P = 1, D = 1, Q = 1, S = 12)
+
+# View results
+print(sarima_model)
+
+
+##########
+
+library(forecast)
+
+
+# Fit SARIMA model
+sarima_model <- auto.arima(maricopa_pm10, seasonal = TRUE)
+summary(sarima_model)
+
+# Decompose and visualize
+decomposed <- decompose(maricopa_pm10)
+plot(decomposed)
+
+
+```
+
+
+
+2. Spatiotemporal Analysis with the SpatioTemporal Package
+```{r}
+# install.packages("SpatioTemporal")
+library(SpatioTemporal)
+
+str(obs)
+
+library(dplyr)  # For dplyr functions, including `%>%`
+library(tidyverse)  # For the entire tidyverse, which includes dplyr
+
+# Check missing data percentage
+sapply(obs, function(x) sum(is.na(x) | is.nan(x)) / length(x) * 100)
+
+
+
+# # Option 1: Remove rows with NaN values
+# obs <- obs %>%
+#   filter(!is.nan(PM10_mean) & !is.nan(TEMP_AVG))
+
+# Option 2: Impute missing values (e.g., with mean or interpolation)
+library(zoo)
+obs <- obs %>%
+  mutate(
+    PM10_mean = na.approx(PM10_mean, na.rm = FALSE),
+    TEMP_AVG = na.approx(TEMP_AVG, na.rm = FALSE)
+  )
+obs <- obs %>%
+  mutate(Date = as.Date(paste(Year, Month, "01", sep = "-")))
+obs$PM10_mean <- as.numeric(obs$PM10_mean)
+obs$TEMP_AVG <- as.numeric(obs$TEMP_AVG)
+
+# If not already created, create combined_data
+combined_data <- obs %>%
+  group_by(County) %>%
+  summarize(
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    PM10_mean = mean(PM10_mean, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# If combined_data does not yet have spatial geometry, ensure az_counties_sf is available
+library(sf)
+combined_data <- az_counties_sf %>%
+  left_join(combined_data, by = c("NAME" = "County"))
+
+# Convert to Spatial object
+library(sp)
+combined_data_sp <- as(combined_data, "Spatial")
+
+# Ensure the column `ID` exists in `combined_data_sp`
+combined_data_sp$ID <- combined_data_sp$NAME  # Copy county names as IDs if necessary
+setdiff(obs$County, combined_data_sp$ID)
+
+
+
+# Check mismatches
+setdiff(obs$County, combined_data_sp$ID)  # Or whatever column identifies locations in `combined_data_sp`
+
+# Ensure consistent IDs
+obs$County <- factor(obs$County, levels = unique(combined_data_sp$ID))
+
+str(obs)
+
+obs <- obs %>%
+  rename(
+    obs = PM10_mean,   # Observed values (PM10_mean for this example)
+    date = Date,       # Ensure Date column is named `date`
+    ID = County        # Ensure County column is named `ID`
+  )
+
+combined_data_sp$ID <- combined_data_sp$NAME  # Replace NAME with the spatial identifier column
+
+covars <- obs %>%
+  group_by(ID) %>%
+  summarize(
+    TEMP_AVG = mean(TEMP_AVG, na.rm = TRUE),
+    Cases = sum(Cases, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+data_st <- createSTdata(
+  obs = obs,
+  spLocations = combined_data_sp,
+  Time = unique(obs$date),
+  Variables = c("TEMP_AVG", "Cases"),
+  covars = covars
+)
+
+
+
+summary(data_st)
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+

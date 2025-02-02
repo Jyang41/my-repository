@@ -1,0 +1,682 @@
+---
+title: "Test Final_5counties"
+author: "Jiseon Yang"
+date: "2024-11-28"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Step 1: Sample Dataset Structure
+
+\n Columns:
+\n Year: Integer (e.g., 2000, 2001, ...)
+\n Month: Integer (1–12)
+\n County: County name (e.g., "Maricopa")
+\n TEMP_AVG: Average temperature (°C)
+\n HUM_AVG: Average humidity (%)
+\n WIND_AVG: Average wind speed (m/s)
+\n PM10: Airborne particulate matter concentration (µg/m³)
+\n Cases: Disease cases (count)
+
+
+## Step 2: Prepare Your Environment
+```{r}
+# Install required packages
+# install.packages(c("sf", "spdep", "ggplot2", "dplyr", "viridis", "tmap"))
+
+# Load libraries
+library(sf)
+library(spdep)
+library(ggplot2)
+library(dplyr)
+library(viridis)
+library(tmap)
+
+
+```
+
+
+
+
+## Step 3: Example Dataset
+```{r}
+set.seed(123)
+
+# Create a sample dataset
+data <- expand.grid(
+  Year = 2000:2023,
+  Month = 1:12,
+  County = c("Maricopa", "Pima", "Yavapai", "Cochise", "Mohave")
+)
+
+data <- data %>%
+  mutate(
+    TEMP_AVG = round(runif(nrow(data), min = 15, max = 40), 1),
+    HUM_AVG = round(runif(nrow(data), min = 10, max = 70), 1),
+    WIND_AVG = round(runif(nrow(data), min = 1, max = 15), 1),
+    PM10 = round(runif(nrow(data), min = 20, max = 200), 1),
+    Cases = rpois(nrow(data), lambda = 5)
+  )
+
+# Preview the dataset
+head(data)
+
+
+```
+
+
+
+
+## Step 4: Load Shapefile for Spatial Analysis
+```{r}
+
+# Read Arizona counties shapefile
+az_counties <- st_read("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/tl_2024_us_county/az_counties.shp")
+
+# Check structure
+head(az_counties)
+
+```
+
+
+
+
+## Step 5: Aggregate and Link Data
+```{r}
+
+# Aggregate data to annual or monthly summaries (if needed)
+agg_data <- data %>%
+  group_by(County, Year, Month) %>%
+  summarize(
+    TEMP_AVG = mean(TEMP_AVG),
+    HUM_AVG = mean(HUM_AVG),
+    WIND_AVG = mean(WIND_AVG),
+    PM10 = mean(PM10),
+    Cases = sum(Cases),
+    .groups = 'drop'
+  )
+
+# Link to shapefile
+az_combined <- az_counties %>%
+  left_join(agg_data, by = c("NAME" = "County"))
+
+```
+
+
+
+
+## Step 6: Visualize Data
+```{r}
+
+# Plot PM10 levels
+ggplot(data = az_combined) +
+  geom_sf(aes(fill = PM10), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "PM10 Levels by County",
+       fill = "PM10 (µg/m³)") +
+  theme_minimal()
+
+```
+
+
+
+
+## Step 7: Spatiotemporal Analysis
+1. Spatial Autocorrelation
+```{r}
+
+# Create neighbors list and weights matrix
+nb <- poly2nb(az_counties, queen = TRUE)
+lw <- nb2listw(nb, style = "W")
+
+# # Moran's I for PM10
+# moran_test <- moran.test(agg_data$PM10, lw)
+# print(moran_test)
+
+# Aggregate PM10 to a single value per county
+county_pm10 <- agg_data %>%
+  group_by(County) %>%
+  summarize(
+    PM10_mean = mean(PM10, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Ensure counties in `county_pm10` match row order of `az_counties`
+county_pm10 <- county_pm10 %>%
+  arrange(match(County, az_counties$NAME))
+
+# # Moran's I for aggregated PM10
+# moran_test <- moran.test(county_pm10$PM10_mean, lw)
+# print(moran_test)
+
+#############
+
+# Number of counties in adjacency matrix
+length(nb)
+
+# Number of counties in the aggregated data
+nrow(county_pm10)
+
+# County names in az_counties
+sort(unique(az_counties$NAME))
+
+# County names in county_pm10
+sort(unique(county_pm10$County))
+
+
+# Fix the Mismatch
+# Find common counties
+common_counties <- intersect(az_counties$NAME, county_pm10$County)
+
+# Filter shapefile and data for common counties
+az_counties_filtered <- az_counties %>%
+  filter(NAME %in% common_counties)
+
+county_pm10_filtered <- county_pm10 %>%
+  filter(County %in% common_counties)
+
+# Rebuild adjacency matrix and weights
+nb_filtered <- poly2nb(az_counties_filtered, queen = TRUE)
+lw_filtered <- nb2listw(nb_filtered, style = "W")
+
+moran_test <- moran.test(county_pm10_filtered$PM10_mean, lw_filtered)
+print(moran_test)
+
+```
+
+
+
+
+2. Time Series Analysis
+```{r}
+
+# Aggregate cases over time
+time_series <- agg_data %>%
+  group_by(Year) %>%
+  summarize(Cases = sum(Cases))
+
+# Plot time series
+ggplot(time_series, aes(x = Year, y = Cases)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Disease Cases Over Time",
+       x = "Year", y = "Cases")
+
+```
+
+
+
+
+3. Regression Modeling
+```{r}
+
+# Linear model: PM10 and temperature predicting cases
+lm_model <- lm(Cases ~ PM10 + TEMP_AVG + HUM_AVG + WIND_AVG, data = agg_data)
+summary(lm_model)
+
+```
+
+
+
+## Step 8: Advanced Modeling
+<!-- Spatiotemporal Models: Use packages like INLA or spBayes. -->
+<!-- Spatial Regression Models: Use spdep for lag or error models. -->
+
+
+### A. Spatiotemporal Models with INLA
+
+#### Install and Load INLA
+```{r}
+# Install INLA if not already installed
+#  if (!requireNamespace("INLA", quietly = TRUE)) {
+#    install.packages("INLA", repos = "https://inla.r-inla-download.org/R/stable")
+# }
+
+# install.packages("fmesher", repos = "https://inla.r-inla-download.org/R/stable")
+
+install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
+library(INLA)
+
+
+```
+
+
+
+
+#### Prepare Data for INLA
+```{r}
+
+# Example: Using PM10 as the response variable and TEMP_AVG, HUM_AVG as predictors
+# Ensure your dataset has a time variable (e.g., Year) and spatial coordinates.
+
+# Generate a unique ID for counties
+az_counties$ID <- 1:nrow(az_counties)
+
+# Merge spatial data with temporal data
+inla_data <- az_counties %>%
+  left_join(agg_data, by = c("NAME" = "County"))
+
+# Convert time to numeric (if it's a factor)
+inla_data$Year <- as.numeric(as.factor(inla_data$Year))
+
+# Define spatial adjacency matrix
+nb <- poly2nb(az_counties, queen = TRUE)
+lw <- nb2listw(nb, style = "W")
+adj_matrix <- nb2mat(nb, style = "B", zero.policy = TRUE)
+graph <- inla.read.graph(adj_matrix)
+
+```
+
+
+####Fit Spatiotemporal Model
+```{r}
+# Define the model formula
+formula <- PM10 ~ TEMP_AVG + HUM_AVG + 
+           f(ID, model = "bym", graph = graph) +  # Spatial effect
+           f(Year, model = "rw1")                # Temporal random walk
+
+# Run INLA
+fit <- inla(formula,
+            family = "gaussian",
+            data = inla_data,
+            control.compute = list(dic = TRUE, waic = TRUE))
+
+# Summarize results
+summary(fit)
+```
+
+
+
+####Visualize Results
+```{r}
+# Predicted PM10 values
+inla_data$PM10_pred <- fit$summary.fitted.values$mean
+
+# Plot predicted values
+ggplot(data = inla_data) +
+  geom_sf(aes(fill = PM10_pred), color = "white") +
+  scale_fill_viridis_c(option = "C", na.value = "grey50") +
+  labs(title = "Predicted PM10 Levels by County",
+       fill = "PM10 (µg/m³)") +
+  theme_minimal()
+
+```
+
+
+
+
+### B. Spatial Regression Models with spdep
+
+#### Fit Spatial Lag Model
+```{r}
+
+# install.packages("spatialreg")
+library(spatialreg)
+# install.packages("spdep")
+library(spdep)
+
+
+# Step 3: Recreate the Weights Matrix
+
+# Create neighbors list (based on shared borders)
+nb <- poly2nb(az_counties, queen = TRUE)
+
+# Convert neighbors list to weights matrix
+lw <- nb2listw(nb, style = "W")  # Style "W" for row-standardized weights
+
+
+# Step 4: Proceed with Spatial Analysis
+
+# Fit a Spatial Lag Model
+lag_model <- lagsarlm(PM10 ~ TEMP_AVG + HUM_AVG + WIND_AVG, data = agg_data, listw = lw)
+
+# Summarize model results
+summary(lag_model)
+
+
+
+```
+
+
+
+
+#### Fit Spatial Error Model
+```{r}
+# Fit spatial error model
+error_model <- errorsarlm(PM10 ~ TEMP_AVG + HUM_AVG + WIND_AVG,
+                          data = agg_data, listw = lw)
+
+# Summarize results
+summary(error_model)
+
+```
+
+
+
+
+#### Refining Spatial Analysis
+```{r}
+# Moran's I and Geary's C for residuals
+residuals <- residuals(lag_model)
+moran_res <- moran.test(residuals, lw)
+geary_res <- geary.test(residuals, lw)
+print(moran_res)
+print(geary_res)
+
+```
+
+
+
+
+#### Model Comparison
+```{r}
+# Compare models
+AIC_lag <- AIC(lag_model)
+AIC_error <- AIC(error_model)
+AIC_linear <- AIC(lm_model)
+print(c(AIC_lag, AIC_error, AIC_linear))
+
+```
+
+
+
+
+#### Advanced Spatiotemporal Modeling with INLA
+```{r}
+formula <- Cases ~ TEMP_AVG + HUM_AVG + 
+           f(ID, model = "bym", graph = graph) +  # Spatial effect
+           f(Year, model = "rw1") +              # Temporal effect
+           f(Month, model = "rw1")               # Seasonal effect
+summary(formula )
+```
+
+
+
+
+#### Exploratory Data Visualization: generate a lot of images:
+C:\\Users\\jyang\\AppData\\Local\\Temp\\Rtmpwxbbor\\64e42e9a16bd/gganim_plot0100.png
+```{r}
+# install.packages("gganimate")
+library(gganimate)
+# ggplot(data = az_combined) +
+#   geom_sf(aes(fill = PM10), color = "white") +
+#   scale_fill_viridis_c(option = "C", na.value = "grey50") +
+#   transition_time(Year) +
+#   labs(title = "PM10 Levels by County: {frame_time}",
+#        fill = "PM10 (µg/m³)") +
+#   theme_minimal()
+
+```
+
+
+
+
+#### 1. Data Preparation
+Objective: Combine spatial and temporal data, ensuring alignment between spatial (e.g., counties) and temporal dimensions (e.g., monthly data).
+
+Steps:
+Import your spatial data (e.g., shapefiles) using sf or sp.
+Aggregate or join spatial data with temporal data.
+Reshape the dataset into a long format with clear identifiers for spatial units, time, and variables.
+```{r}
+library(sf)
+library(dplyr)
+
+# Load spatial data
+az_counties <- st_read("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Spatiotemporal Analysis/Final Project/tl_2024_us_county/az_counties.shp")
+
+# Prepare temporal data
+temporal_data <- data.frame(
+  County = rep(c("Maricopa", "Pima", "Cochise"), each = 36),
+  Year = rep(2000:2002, times = 12),
+  Month = rep(1:12, times = 3),
+  TEMP_AVG = rnorm(108, 30, 5),
+  PM10 = rnorm(108, 50, 10),
+  Cases = rpois(108, lambda = 5)
+)
+
+# Combine spatial and temporal data
+combined_data <- az_counties %>%
+  left_join(temporal_data, by = c("NAME" = "County"))
+
+```
+
+
+
+
+####2. Exploratory Data Analysis
+Objective: Understand spatial and temporal patterns, correlations, and dependencies.
+
+Tools:
+Spatial Visualization: Use ggplot2 or tmap.
+Temporal Analysis: Use astsa for time series visualization.
+```{r}
+library(ggplot2)
+
+# Spatial plot
+ggplot(data = combined_data) +
+  geom_sf(aes(fill = PM10)) +
+  labs(title = "PM10 Levels by County", fill = "PM10 (µg/m³)") +
+  theme_minimal()
+
+# Temporal plot
+library(astsa)
+plot.ts(temporal_data$PM10, main = "PM10 Levels Over Time", ylab = "PM10")
+
+```
+
+
+
+####3. Temporal Modeling (astsa)
+Objective: Model temporal autocorrelation, trends, and seasonality for each spatial unit.
+Approach:
+Decompose time series using astsa or forecast packages.
+Fit ARIMA or SARIMA models for temporal dependencies.
+Compare models using AIC/BIC.
+```{r}
+library(astsa)
+
+# Subset data for one county
+pm10_time_series <- ts(temporal_data$PM10[temporal_data$County == "Maricopa"], frequency = 12)
+
+# Plot and decompose
+plot(pm10_time_series, main = "PM10 Levels in Maricopa")
+decompose(pm10_time_series)
+
+# Fit ARIMA model
+arima_model <- astsa::sarima(pm10_time_series, p = 1, d = 1, q = 1, P = 0, D = 1, Q = 0, S = 12)
+
+
+```
+
+
+
+
+
+####4. Spatiotemporal Modeling (SpatioTemporal)
+Objective: Model spatiotemporal interactions, predict outcomes across unobserved locations, and account for spatial dependencies.
+Approach:
+Use the SpatioTemporal package for space-time Kriging or hierarchical models.
+Fit models to combined data with spatial and temporal predictors.
+
+
+```{r}
+library(SpatioTemporal)
+
+# Prepare data for spatiotemporal modeling
+data_st <- createSTdata(
+  combined_data,
+  spLocations = combined_data$geometry,
+  Time = as.Date(paste(combined_data$Year, combined_data$Month, "01", sep = "-")),
+  Variables = c("TEMP_AVG", "PM10", "Cases")
+)
+
+# Fit a Spatiotemporal Model
+st_model <- fitSTmodel(
+  data_st,
+  formula = Cases ~ TEMP_AVG + PM10,
+  cov.model = "exponential"
+)
+
+# Predict cases
+predicted_cases <- predict.STmodel(st_model, newdata = data_st)
+
+```
+
+
+
+
+
+
+####5. Basis Function Approach
+Objective: Smooth spatial or temporal data using basis functions.
+Tools: Use Gaussian processes or splines for smoothing.
+
+```{r}
+library(fields)
+
+# Use spatial basis functions for smoothing PM10
+pm10_basis <- fields::Tps(as.matrix(combined_data$geometry), combined_data$PM10)
+
+# Predict on a grid
+predicted_pm10 <- predict(pm10_basis, grid = make.surface.grid())
+
+```
+
+
+
+
+
+
+####6. Advanced Spatiotemporal Models (INLA)
+Objective: Combine spatial adjacency and temporal dependencies in a Bayesian framework.
+Steps:
+Create a spatial graph for adjacency.
+Use temporal random walks or autoregressive priors for trends.
+
+
+
+```{r}
+library(INLA)
+
+# Define spatial graph
+nb <- poly2nb(az_counties, queen = TRUE)
+adj_matrix <- nb2mat(nb, style = "B", zero.policy = TRUE)
+graph <- inla.read.graph(adj_matrix)
+
+# Fit INLA model
+formula <- Cases ~ TEMP_AVG + PM10 + f(ID, model = "bym", graph = graph) + f(Month, model = "rw1")
+fit_inla <- inla(formula, family = "poisson", data = combined_data)
+
+# Summarize results
+summary(fit_inla)
+
+```
+
+
+
+
+
+
+####7. Validation and Interpretation
+Objective: Assess model fit and accuracy.
+Approach:
+Use cross-validation to assess predictive accuracy.
+Evaluate metrics like RMSE, MAE, or DIC.
+
+
+```{r}
+# Predicted cases visualization
+combined_data$Cases_pred <- predict(fit_inla)$mean
+
+ggplot(combined_data) +
+  geom_sf(aes(fill = Cases_pred)) +
+  labs(title = "Predicted Disease Cases", fill = "Predicted Cases")
+
+```
+
+This workflow combines astsa for temporal modeling and SpatioTemporal for integrated spatiotemporal analysis, with room to incorporate basis functions, Bayesian approaches (INLA), and spatial regression (spdep). Tailor these steps to your specific dataset and research questions! Let me know if you'd like further details or code refinements.
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
+####
+
+```{r}
+
+```
+
+
+
+
+
+
