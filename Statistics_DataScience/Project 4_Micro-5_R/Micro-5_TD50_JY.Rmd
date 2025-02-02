@@ -1,0 +1,931 @@
+---
+title: "Micro-5_TD50_JY"
+author: "Jiseon Yang"
+date: "2024-11-19"
+output: word_document
+---
+
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(car)  # For ANOVA assumption testing
+library(multcomp)  # For Tukey's HSD
+
+# Load dataset (replace 'td50_data.csv' with your file path)
+data <- read.csv("C:/Users/jyang/ASU Dropbox/Jiseon Yang/2 PROJJECT/2014_NASA Micro-5/Micro-17_TD50.csv")
+
+# Check data structure
+str(data)
+
+
+```
+
+
+
+
+```{r}
+# Convert categorical variables to factors
+data$ID <- as.factor(data$Samplenumber)
+data$Strain <- as.factor(data$Strain)
+data$Environment <- as.factor(data$GravityCondition)
+data$Media <- as.factor(data$Media)
+
+# Summary statistics
+summary(data)
+summary(data$TD50)
+
+# Remove rows with missing data
+data_clean <- na.omit(data)
+```
+
+# Data overview
+
+```{r }
+
+# Boxplots to visualize TD50 distribution
+# ggplot(data_clean, aes(x=Strain, y=TD50, fill=Environment)) +
+#   geom_boxplot() +
+#   facet_wrap(~ Media) +
+#   theme_minimal() +
+#   labs(title="TD50 by Strain, Environment, and Media",
+#        x="Strain", y="TD50")
+
+# Load necessary library
+library(gridExtra)
+library(ggplot2)
+
+# Define a function to plot for a specific media type without a legend
+plot_media <- function(media_name, legend = FALSE) {
+  p <- ggplot(data_clean[data_clean$Media == media_name, ], aes(x = Strain, y = TD50, fill = Environment)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("TD50:", media_name),
+         x = NULL, y = "TD50") +
+    scale_x_discrete(limits = c("OP50", "Salmonella")) +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 16, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),#font size and style
+      axis.title.x = element_text(size = 9),   # X-axis title font size
+      axis.title.y = element_text(size = 9),   # Y-axis title font size
+      axis.text.x = element_text(size = 9),    # X-axis tick labels font size
+      axis.text.y = element_text(size = 9)     # Y-axis tick labels font size
+    )
+  if (!legend) {
+    p <- p + theme(legend.position = "none")  # Remove legend
+  }
+  return(p)
+}
+
+# Generate individual plots
+plot_LB <- plot_media("LB", legend = FALSE)
+plot_LBM9 <- plot_media("LBM9", legend = FALSE)
+plot_LBPiPEG <- plot_media("LBPiPEG", legend = FALSE)
+plot_LBPO4 <- plot_media("LBPO4", legend = FALSE)  # Include legend for this plot
+
+# Extract the legend from one plot
+get_legend <- function(plot) {
+  g <- ggplotGrob(plot)
+  legend <- g$grobs[which(sapply(g$grobs, function(x) x$name) == "guide-box")][[1]]
+  return(legend)
+}
+
+# Arrange plots in a 2x2 grid with a shared legend
+grid.arrange(
+  arrangeGrob(plot_LB, plot_LBM9, plot_LBPiPEG, plot_LBPO4, nrow = 2, ncol = 2),
+  legend,
+  nrow = 2,
+  heights = c(3, 1)  # Adjust height ratio between plots and legend
+)
+```
+
+# Flight vs Ground Static
+```{r }
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_clean[data_clean$Environment == environment & data_clean$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 13), breaks = seq(4, 13, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Flight", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Flight", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+```
+
+
+
+
+```{r}
+
+# Interaction plots
+interaction.plot(data_clean$Strain, data_clean$Environment, data_clean$TD50, col=c("red", "blue"))
+interaction.plot(data_clean$Media, data_clean$Environment, data_clean$TD50, col=c("green", "purple"))
+
+
+```
+
+# ANOVA
+\n Conclusion: Strain, Environment, and the interaction (Strain* Environment) significantly affect TD50.
+\n violate the assumption of residual is not normal
+```{r}
+# ANOVA model
+anova_model <- aov(TD50 ~ Strain * Environment * Media, data=data_clean)
+
+# ANOVA table
+summary(anova_model)
+
+
+# Post-hoc test
+#tukey_result <- TukeyHSD(anova_model)
+
+# Display Tukey's HSD results
+#print(tukey_result)
+
+
+# Save results to a file
+#write.csv(tukey_result$`Strain:Environment:Media`, "tukey_results.csv")
+
+
+# Homogeneity of variances
+# H0: variances are equal across groups
+leveneTest(TD50 ~ Strain * Environment * Media, data=data_clean)
+cat("\n * There is no evidence of significant heteroscedasticity:variances are homogeneous")
+
+# Check assumptions of ANOVA
+# Residuals normality: H0: residual~ Normal
+shapiro.test(residuals(anova_model))
+cat("* The residuals are not normally distributed.","\n" )
+
+# Transform and check normality again
+data_clean$TD50_transformed <- log(data_clean$TD50)
+anova_model_transformed <- aov(TD50_transformed ~ Strain * Environment * Media, data = data_clean)
+shapiro.test(residuals(anova_model_transformed))
+cat("* The residuals are still not normally distributed.","\n" )
+
+# Conclusion:
+cat("\n\n Conclusion:")
+cat("\n 1. Strain, Environment, and the interaction (Strain* Environment) significantly affect TD50.")
+cat("\n 2. Media and its interactions do not significantly influence TD50.")
+cat("\n 3. Variance homogeneity is met, and the ANOVA results are reliable. Yet, residual is not normal. Try nonparametric.")
+cat("\n 4. Insight: Focus on Strain and Environment for their significant effects on TD50.")
+```
+
+
+
+
+# Test Nonparametric Methods: Kruskal-Wallis rank sum test
+\n H0: The medians of TD50 are the same across all combinations of Strain, Environment, and Media.
+\n strong evidence suggesting that at least one combination of factors significantly affects TD50.
+```{r}
+# test Median
+kruskal.test(TD50 ~ interaction(Strain, Environment, Media), data = data_clean)
+cat("\n * we reject the null hypothesis. There is strong evidence that at least one combination of factors significantly affects TD50." )
+
+
+library(ggplot2)
+ggplot(data_clean, aes(x = interaction(Strain, Environment, Media), y = TD50, fill = Environment)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "TD50 by Strain, Environment, and Media",
+    x = "Factor Combinations",
+    y = "TD50"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+
+```
+
+
+
+
+# generalized linear mode:   
+\n Parametric modeling, but it can be robust to non-normal residuals
+## GLM_Gaussian vs GLM_Gamma: 
+\n Better fit with gamma distribution ~
+\n non-negative, continuous, may skewed like TD50, variance linked to mean (larger values often show greater variability)
+```{r}
+glm_gaussian <- glm(TD50 ~ Strain * Environment * Media, family = gaussian(link = "log"), data = data_clean)
+summary(glm_gaussian)
+anova(glm_gaussian)
+
+
+cat("\n\n Conclusion:")
+cat("\n 1. The results indicate that the type of Strain (OP50 vs. Salmonella) and the Environment (Flight vs. Ground Rotating or Ground Static) are the primary factors influencing TD50.")
+cat("\n 2. Media and interactions among factors do not play a significant role in determining TD50 under the conditions tested.")
+
+# gamma: non-negative, continuous, may skewed like TD50, variance linked to mean (larger values often show greater variability)
+glm_Gamma <- glm(TD50 ~ Strain * Environment * Media, family = Gamma(link = "log"), data = data_clean)
+summary(glm_Gamma)
+anova(glm_Gamma)
+
+cat("\n\n Conclusion:")
+cat("\n Strain and Environment are the primary factors influencing TD50.")
+cat("\n Environment*Media: environmental effects on TD50 depend on the media type.  ")
+cat("\n   ")
+
+# Model Diagnostics for Gamma GLM
+par(mfrow = c(2, 2))
+plot(glm_Gamma)
+data_clean[c(64, 70, 71), "Samplenumber"]
+
+# Compare AIC
+AIC(glm_gaussian, glm_Gamma)
+cat("\n glm_Gamma is better model  ")
+
+```
+\n Conclusion:
+\n 1. The results indicate that the type of Strain (OP50 vs. Salmonella) and the Environment (Flight vs. Ground Rotating or Ground Static) are the primary factors influencing TD50.
+\n 2. Media and interactions among factors do not play a significant role in determining TD50 under the conditions tested.
+
+
+
+
+# Perform Aligned Rank Transform (ART) ANOVA,
+
+#### The Aligned Rank Transform (ART) ANOVA is a nonparametric statistical method used to analyze factorial designs, especially when data violate the assumptions of traditional ANOVA. It extends the utility of nonparametric methods, like rank-based tests, to handle interactions and complex designs.
+\n•Standard ANOVA assumes normality and homogeneity of variance; ART ANOVA does not.
+\n•While ANOVA analyzes means, ART ANOVA analyzes the ranked equivalent of aligned data.
+```{r}
+#install.packages("remotes")  
+remotes::install_github("mjskay/ARTool")
+library(ARTool)
+art_model <- art(TD50 ~ Strain * Environment * Media, data = data_clean)
+
+anova(art_model)
+
+```
+
+
+\n Interpretation
+\n 1.	Main Effects:
+\n o	Strain, Environment, and Media independently influence TD50.
+\n o	Environment has the strongest impact, followed by Strain.
+\n 2.	Two-Way Interactions:
+\n o	The effect of Strain on TD50 depends on the Environment.
+\n o	The effect of Strain depends on the Media.
+\n o	The effect of Environment depends on the Media.
+\n 3.	Three-Way Interaction:
+\n o	The combined effect of Strain, Environment, and Media is not significant, suggesting no additional complexity beyond the two-way interactions.
+
+
+
+
+
+
+
+
+# Remove outliers
+```{r}
+data_clean[c(64, 70, 71), ]
+
+# Remove outliers
+data_no_outliers <- data_clean[-c(64, 70, 71), ]
+
+
+
+
+
+########### re-plot
+# Define a function to plot for a specific media type without a legend
+plot_media <- function(media_name, legend = FALSE) {
+  p <- ggplot(data_no_outliers[data_no_outliers$Media == media_name, ], aes(x = Strain, y = TD50, fill = Environment)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("TD50:", media_name),
+         x = NULL, y = "TD50") +
+    scale_x_discrete(limits = c("OP50", "Salmonella")) +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 16, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),#font size and style
+      axis.title.x = element_text(size = 9),   # X-axis title font size
+      axis.title.y = element_text(size = 9),   # Y-axis title font size
+      axis.text.x = element_text(size = 9),    # X-axis tick labels font size
+      axis.text.y = element_text(size = 9)     # Y-axis tick labels font size
+    )
+  if (!legend) {
+    p <- p + theme(legend.position = "none")  # Remove legend
+  }
+  return(p)
+}
+
+# Generate individual plots
+plot_LB <- plot_media("LB", legend = FALSE)
+plot_LBM9 <- plot_media("LBM9", legend = FALSE)
+plot_LBPiPEG <- plot_media("LBPiPEG", legend = FALSE)
+plot_LBPO4 <- plot_media("LBPO4", legend = FALSE)  # Include legend for this plot
+
+# Extract the legend from one plot
+get_legend <- function(plot) {
+  g <- ggplotGrob(plot)
+  legend <- g$grobs[which(sapply(g$grobs, function(x) x$name) == "guide-box")][[1]]
+  return(legend)
+}
+
+# Arrange plots in a 2x2 grid with a shared legend
+grid.arrange(
+  arrangeGrob(plot_LB, plot_LBM9, plot_LBPiPEG, plot_LBPO4, nrow = 2, ncol = 2),
+  legend,
+  nrow = 2,
+  heights = c(3, 1)  # Adjust height ratio between plots and legend
+)
+
+
+
+
+################# re-plot
+
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_no_outliers[data_no_outliers$Environment == environment & data_no_outliers$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 13), breaks = seq(4, 13, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Flight", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Flight", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+
+
+####################### re-plot
+library(ggplot2)
+ggplot(data_no_outliers, aes(x = interaction(Strain, Environment, Media), y = TD50, fill = Environment)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "TD50 by Strain, Environment, and Media",
+    x = "Factor Combinations",
+    y = "TD50"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+
+
+```{r}
+glm_no_outliers <- glm(TD50 ~ Strain * Environment * Media, family = Gamma(link = "log"), data = data_no_outliers)
+
+summary(glm_no_outliers)
+
+anova(glm_no_outliers)
+
+par(mfrow = c(2, 2))
+plot(glm_no_outliers)
+
+# Compare AIC
+AIC(glm_no_outliers, glm_Gamma)
+cat("\n glm model: Better without outliers")
+```
+
+
+
+```{r}
+art_model_Outliers <- art(TD50 ~ Strain * Environment * Media, data = data_no_outliers)
+
+anova(art_model_Outliers)
+
+```
+
+
+
+
+
+
+# Remove selected data : 
+## Indeed, removing the selected data (odd data) better satisfy assumption although the overall pattern may not agree accross all conditions. 
+```{r}
+data_clean[c(60, 63, 66, 69), ]
+
+# Remove outliers
+data_remove_select <- data_clean[-c(60, 63, 66, 69), ]
+
+
+
+########### re-plot
+# Define a function to plot for a specific media type without a legend
+plot_media <- function(media_name, legend = FALSE) {
+  p <- ggplot(data_remove_select[data_remove_select$Media == media_name, ], aes(x = Strain, y = TD50, fill = Environment)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("TD50:", media_name),
+         x = NULL, y = "TD50") +
+    scale_x_discrete(limits = c("OP50", "Salmonella")) +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 16, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),#font size and style
+      axis.title.x = element_text(size = 9),   # X-axis title font size
+      axis.title.y = element_text(size = 9),   # Y-axis title font size
+      axis.text.x = element_text(size = 9),    # X-axis tick labels font size
+      axis.text.y = element_text(size = 9)     # Y-axis tick labels font size
+    )
+  if (!legend) {
+    p <- p + theme(legend.position = "none")  # Remove legend
+  }
+  return(p)
+}
+
+# Generate individual plots
+plot_LB <- plot_media("LB", legend = FALSE)
+plot_LBM9 <- plot_media("LBM9", legend = FALSE)
+plot_LBPiPEG <- plot_media("LBPiPEG", legend = FALSE)
+plot_LBPO4 <- plot_media("LBPO4", legend = FALSE)  # Include legend for this plot
+
+# Extract the legend from one plot
+get_legend <- function(plot) {
+  g <- ggplotGrob(plot)
+  legend <- g$grobs[which(sapply(g$grobs, function(x) x$name) == "guide-box")][[1]]
+  return(legend)
+}
+
+# Arrange plots in a 2x2 grid with a shared legend
+grid.arrange(
+  arrangeGrob(plot_LB, plot_LBM9, plot_LBPiPEG, plot_LBPO4, nrow = 2, ncol = 2),
+  legend,
+  nrow = 2,
+  heights = c(3, 1)  # Adjust height ratio between plots and legend
+)
+
+
+
+
+################# re-plot
+
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_remove_select[data_remove_select$Environment == environment & data_remove_select$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 13), breaks = seq(4, 13, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Flight", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Flight", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+
+
+####################### re-plot
+library(ggplot2)
+ggplot(data_remove_select, aes(x = interaction(Strain, Environment, Media), y = TD50, fill = Environment)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    title = "TD50 by Strain, Environment, and Media",
+    x = "Factor Combinations",
+    y = "TD50"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+
+
+## Diagnostic with data_remove_select
+\n Overall, satisfy assumption.
+\n Could remove further data c(71, 40, 12)  but not necessary
+```{r fig.height= 8}
+# Diagnostics
+par(mfrow = c(2, 2))
+plot(glm_remove_select)
+
+# non-linearity and heteroscedasticity (non-constant variance)
+# residuals are approximately Gamma-distributed, with slight deviations in the tails. -->  acceptable
+# homoscedasticity (constant variance): fairly consistent across fitted values
+# possible leverage point: 71, close to the Cook's distance threshold, may have some influence on the model.
+# 48 and 12, could have moderate leverage but within threshold 
+
+data_clean[c(71, 40, 12), ]
+
+```
+
+
+
+
+## Fitting glm with data_remove_select
+```{r }
+
+glm_remove_select <- glm(TD50 ~ Strain * Environment * Media, family = Gamma(link = "log"), data = data_remove_select)
+
+summary(glm_remove_select)
+
+anova(glm_remove_select)
+
+
+# Compare AIC
+AIC(glm_no_outliers, glm_Gamma, glm_remove_select)
+```
+
+
+## Fitting art with data_remove_select
+
+```{r}
+art_remove_select <- art(TD50 ~ Strain * Environment * Media, data = data_remove_select)
+
+anova(art_remove_select)
+
+```
+\n Conclusion:
+
+\n •	Both models identify the same significant main effects and interactions, including Strain, Environment, Media, and their two-way interactions. 
+\n •	The three-way interaction is borderline significant in the ART model and significant in the Gamma GLM.
+
+
+
+
+# Ground Rotating vs Ground Static
+```{r }
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_clean[data_clean$Environment == environment & data_clean$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 15, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Ground Rotating", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Ground Rotating", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+
+################## data_no_outliers
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_no_outliers[data_no_outliers$Environment == environment & data_no_outliers$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 15, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Ground Rotating", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Ground Rotating", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+
+
+################## data_remove_select
+ # Define a function to plot based on Environment and Strain
+plot_environment_strain <- function(environment, strain) {
+  ggplot(data_remove_select[data_remove_select$Environment == environment & data_remove_select$Strain == strain, ],
+         aes(x = Media, y = TD50, fill = Media)) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste(environment, "-", strain),
+         x = "Media", y = "TD50") +
+    scale_y_continuous(limits = c(4, 15), breaks = seq(4, 15, by = 2)) +
+    theme(
+      plot.title = element_text(size = 12, face = "bold"),
+      axis.title.x = element_text(size = 9),
+      axis.title.y = element_text(size = 9),
+      axis.text.x = element_text(size = 8, angle = 45, hjust = 1),  # Rotate x-axis labels
+      axis.text.y = element_text(size = 9),
+      legend.position = "none"  # Remove individual legends
+    )
+}
+
+# Generate the plots for each combination of Environment and Strain
+plot_flight_op50 <- plot_environment_strain("Ground Rotating", "OP50")
+plot_flight_salmonella <- plot_environment_strain("Ground Rotating", "Salmonella")
+plot_ground_static_op50 <- plot_environment_strain("Ground Static", "OP50")
+plot_ground_static_salmonella <- plot_environment_strain("Ground Static", "Salmonella")
+
+
+# Combine the plots into a 2x2 grid
+library(gridExtra)
+
+grid.arrange(
+  arrangeGrob(
+    plot_flight_op50, plot_flight_salmonella,
+    plot_ground_static_op50, plot_ground_static_salmonella,
+    nrow = 2, ncol = 2
+  ),
+  nrow = 1
+)
+```
+
+
+
+# Exclude PiPEG
+
+```{r}
+# Remove rows where Media == "LBPiPEG"
+data_no_LBPiPEG <- data_remove_select[data_remove_select$Media != "LBPiPEG", ]
+
+
+# Gamma GLM
+glm_no_LBPiPEG <- glm(
+  TD50 ~ Strain * Environment * Media,
+  family = Gamma(link = "log"),
+  data = data_no_LBPiPEG
+)
+summary(glm_no_LBPiPEG)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(glm_no_LBPiPEG)  
+
+#Type III ANOVA
+library(car)
+type_iii_anova_no_LBPiPEG <- Anova(glm_no_LBPiPEG, type = "III")
+print(type_iii_anova_no_LBPiPEG)
+
+#Type I anova
+anova(glm_no_LBPiPEG)
+
+library(ggplot2)
+ggplot(data_no_LBPiPEG, aes(x = Media, y = TD50, fill = Environment)) +
+  geom_boxplot() +
+  facet_wrap(~ Strain) +
+  theme_minimal() +
+  labs(title = "TD50 by Strain, Environment, and Media (Excluding LBPiPEG)")
+```
+
+
+
+
+
+
+# Exclude OP50 to analyze only Sal, no PiPEG, remove_selected
+
+
+```{r}
+
+data_no_OP50 <- data_no_LBPiPEG[data_no_LBPiPEG$Strain != "OP50", ]
+
+# fit
+glm_no_OP50 <- glm(
+  TD50 ~ Environment * Media,
+  family = Gamma(link = "log"),
+  data = data_no_OP50
+)
+summary(glm_no_OP50)
+
+# Diagnostic
+par(mfrow = c(2, 2))
+plot(glm_no_OP50)
+
+#Anova
+library(car)
+type_iii_anova_no_OP50 <- Anova(glm_no_OP50, type = "III")
+print(type_iii_anova_no_OP50)
+
+anova(glm_no_OP50)
+
+library(ggplot2)
+ggplot(data_no_OP50, aes(x = Media, y = TD50, fill = Environment)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "TD50 by Environment and Media (Excluding OP50)",
+       x = "Media", y = "TD50")
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
