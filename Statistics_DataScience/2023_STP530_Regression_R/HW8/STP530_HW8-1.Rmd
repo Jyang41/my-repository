@@ -1,0 +1,194 @@
+---
+title: "HW8"
+output: word_document
+date: "2023-10-28"
+---
+
+
+
+
+## Import and inspect data 
+```{r}
+
+# -----------------------------------------------------------------------------
+
+# Clean up the workspace for the new analysis
+rm(list=ls()) 
+
+# Load the libraries needed for this analysis
+library(Hmisc)
+library(Rmisc)
+library(ggplot2)
+
+# Set the following to your own folder
+setwd("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2023_STP530_Regression") 
+
+# Import the data
+mydata.1 <- read.table("CH01PR20.txt")
+new.column <- read.table("CH08PR15.txt")
+mydata <- cbind(mydata.1, new.column)
+
+# Inspect the data
+head(mydata)
+str(mydata)
+Hmisc::describe(mydata)
+
+# Re-name columns
+# Y = total number of minutes spent by the service person
+# X1 = number of copiers served
+# X2 = type of copier (Small or Large), 1=small, 0=large commercial
+colnames(mydata) <- c("Y", "X1", "X2")
+pairs(mydata)
+
+# Dependent variable Y: total number of minutes spent by the service person 
+attach(mydata)
+summary(Y)
+sd(Y, na.rm=T)
+par(mfrow=c(1, 2))
+hist(Y)
+
+# X1: number of copiers served
+summary(X1)
+hist(X1)
+
+# X2: type of copier (Small or Large), 1=small, 0=large commercial
+table(X2, useNA="ifany")
+X2.factor<- factor(X2, levels=c(0, 1), labels=c("Large", "Small"))
+table(X2.factor)
+```
+
+
+## fit models: m1, m2, m3, m4 and diagnostics 
+```{r}
+# -------------------------------------------------------------------------
+# Regression
+# Research Q1: Does the Y(service time) differ between X2.factor (machine type) 
+m1 <- lm(Y ~ X2.factor, data=mydata)
+summary(m1) # not significantlly different
+
+# ----Additive, categorical
+# Research Q2: Does the Y(service time) still differ between copier types (S/L), 
+#  after controlling for the X1 (# of serviced copiers)
+m2 <- lm(Y ~ X1 + X2.factor, data=mydata)
+library(car)
+vif(m2) 
+summary(m2)
+model.matrix(m2) #Show the dummy code system
+
+# Diagnostics of m2
+par(mfrow=c(1, 2))
+plot(X1, Y) #(1)linear relationship
+plot(X2.factor, Y)
+par(mfrow=c(1, 2))
+library(car)
+residualPlot(m2, type="rstudent", quadratic=F) #(2)Outliers, (3)Homoskedasticity
+qqnorm(residuals(m2)) #(4)normal
+qqline(residuals(m2)) #(5)independent by data collection,yes
+
+# ----Interaction term, m3
+# Research Q3: Does the relationship btw X1 and Y differ for the copier types?
+# Is the effect of X1 on Y is differ depending on the X2.factor (copier types)?
+
+m3 <- lm(Y ~ X1 + X2.factor + X2.factor:X1, data=mydata)
+vif(m3) # multicollinearlity --> need to fix
+summary(m3) # Y.hat = 2.8131 + 14.3394(X1) -8.1412(X2.factorSmall) + 1.7774(X1)(X2.factorSmall)
+anova(m3)
+
+# Diagnostics of m3
+residualPlot(m3, type="rstudent", quadratic=F) #(2)Outliers, (3)Homoskedasticity
+qqnorm(residuals(m3)) #(4)normal
+qqline(residuals(m3))
+
+
+# ---- Centering, m3.c
+# Center the continuous variable to alleviate multicollinearity
+X1.c <- X1 - mean(X1, na.rm=T)
+# Fit the interaction model again with the centered variable
+m3.c <- lm(Y ~ X1.c + X2.factor + X2.factor:X1.c, data=mydata)
+vif(m3.c)
+summary(m3.c) # Y.hat = 76.1034 + 14.3394(X1) + 0.9432(X2.factorSmall) + 1.7774(X1)(X2.factorSmall)
+anova(m3.c)
+
+# Diagnostics of m4
+residualPlot(m3.c, type="rstudent", quadratic=F) #(2)Outliers, (3)Homoskedasticity
+qqnorm(residuals(m3.c)) #(4)normal
+qqline(residuals(m3.c))
+
+# Residual plots for diagnostic purposes before statistical tests
+par(mfrow=c(2, 2))
+plot(m3.c)
+```
+
+## Compare models: if the interaction term can be dropped
+```{r}
+# Compare models using the general linear test approach
+# Fit the model again
+m2.c <- lm(Y ~ X1.c + X2.factor, data=mydata)
+m3.c <- lm(Y ~ X1.c + X2.factor + X2.factor:X1.c, data=mydata)
+summary(m2.c)
+summary(m3.c)
+
+# F-test of general linear testing approach
+# anova(m4.lw, m2.lw) #marginally significant, sample size 45
+anova(m3.c, m2.c)
+
+# R^2, to look at practical significance by reducing the model
+# summary(m2.lw)$r.squared
+# summary(m4.lw)$r.squared
+summary(m2.c)$r.squared
+summary(m3.c)$r.squared
+
+library(rsq)
+rsq.partial(objF=m3.c, objR=m2.c)
+```
+
+
+# Graph
+```{r}
+#-------------------------------------------------------------------------------
+# Graph. Plot using the original data with occasional missing values.
+par(mfrow=c(1, 2))
+my.pred <- predict(m2.c, newdata=data.frame(X1, X2.factor))
+plot(X1[X2.factor == "Large"], Y[X2.factor == "Large"],
+     col="blue", xlab="The number of copiers served", 
+     ylab="Total time spent by the service person", pch=3)
+points(X1[X2.factor == "Small"], Y[X2.factor == "Small"],
+     col="orange", pch=5)
+lines(X1[X2.factor == "Large"], my.pred[X2.factor == "Large"], 
+      col="blue", pch=3, lwd=3)
+lines(X1[X2.factor == "Small"], my.pred[X2.factor == "Small"], 
+      col="orange", pch=3, lwd=3)
+legend("bottomright", legend=c("m2.c.Large", "m2.c.Small"), 
+       col=c("blue", "orange"), pch=c(3,5))
+
+my.pred <- predict(m3.c, newdata=data.frame(X1, X2.factor))
+plot(X1[X2.factor == "Large"], Y[X2.factor == "Large"],
+     col="forestgreen", xlab="The number of copiers served", 
+     ylab="Total time spent by the service person", pch=3)
+points(X1[X2.factor == "Small"], Y[X2.factor == "Small"],
+       col="magenta", pch=5)
+lines(X1[X2.factor == "Large"], my.pred[X2.factor == "Large"], 
+      col="forestgreen", pch=3, lwd=3)
+lines(X1[X2.factor == "Small"], my.pred[X2.factor == "Small"], 
+      col="magenta", pch=3, lwd=3)
+legend("bottomright", legend=c("m4.c.Large", "m4.c.Small"), 
+       col=c("forestgreen", "magenta"), pch=c(3,5))
+
+
+#------------------------------------------------------------------------------- 
+# 3D plot for the regression surface
+library(rgl)
+par3d(cex=2)
+plot3d(X1.c, X2, Y, col="red", size=10)
+
+x <- seq(from=min(X1.c), to=max(X1.c), length.out=10)
+y <- seq(from=min(X2), to=max(X2), length.out=10)
+z2 <- matrix(NA, length(x), length(y))
+for (i in 1:length(x)){
+  for (j in 1:length(y)){
+    z2[i, j] <- sum(coef(m3.c) * c(1, x[i], y[j], x[i]*y[j]))
+  }
+}
+surface3d(x, y, z2, color="yellow")
+```
+

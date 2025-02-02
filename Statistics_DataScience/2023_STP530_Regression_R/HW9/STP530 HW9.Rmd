@@ -1,0 +1,213 @@
+---
+title: "STP530 HW9"
+output: word_document
+date: "2023-11-06"
+---
+
+```{r}
+# Class demo of polynomial regression
+
+rm(list=ls()) # Clean up the workspace for the new analysis
+
+# Set the following to your own folder
+setwd("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2023_STP530_Regression/HW9") 
+
+
+library(rgl)
+library(Hmisc)
+library(Rmisc)
+library(ggplot2)
+
+# Import the dataset, and Inspect the data. 
+mydata <- read.table("CH06PR18.txt")
+head(mydata)
+
+# Re-name columns
+# V1 = Y  = rental rates 
+# V2 = X1 = age
+# V3 = X2 = operating expenses and taxes
+# V4 = X3 = vacancy rates 
+# V5 = X4 = total square footage 
+
+colnames(mydata) <- c("Y_rent", "X1_age", "X2_expenses", "X3_vac.rates", "X4_sq.ft")
+str(mydata)
+Hmisc::describe(mydata)
+pairs(mydata)
+
+# Dependent variable Y: rental rates 
+attach(mydata)
+summary(Y_rent)
+sd(Y_rent, na.rm=T)
+par(mfrow=c(2, 3))
+hist(Y_rent)
+
+# X1: number of copiers served
+summary(X1_age)
+hist(X1_age)
+
+# X2: operating expenses and taxes
+summary(X2_expenses)
+hist(X2_expenses)
+
+# X3: vacancy rates 
+summary(X3_vac.rates)
+hist(X3_vac.rates)
+
+# X4: total square footage
+summary(X4_sq.ft)
+hist(X4_sq.ft)
+```
+
+```{r}
+# ------------------------------------------------------------------------------
+# Part I. regression models, rename column
+colnames(mydata) <- c("Y", "X1", "X2", "X3", "X4")
+
+# m0: Additive 
+m0 <- lm(Y ~ X1 + X2 + X3 + X4, data=mydata)
+library(car)
+vif(m0)
+summary(m0) 
+summary(m0)$r.squared
+
+# m.X4: 
+m.X4 <- lm(Y ~ X4, data=mydata)
+summary(m.X4)
+summary(m.X4)$r.squared # 0.2865058
+
+# m.X1X4: X1|X4
+m.X1X4 <- lm(Y ~ X4 + X1, data=mydata)
+vif(m.X1X4)
+summary(m.X1X4)
+summary(m.X1X4)$r.squared # 0.4652132
+
+# m.X2X14: X2|X1,X4
+m.X2X14 <- lm(Y ~ X4 + X1 + X2, data=mydata)
+vif(m.X2X14)
+summary(m.X2X14) 
+summary(m.X2X14)$r.squared # 0.5829752
+
+# m.X3X124: X3|X1,X2,X4
+m.X3X124 <- lm(Y ~ X4 + X1 + X2 + X3, data=mydata)
+vif(m.X3X124)
+summary(m.X3X124)
+summary(m.X3X124)$r.squared # 0.5847496
+
+# Compare models
+anova(m.X2X14, m.X3X124) # p=0.5704, X3 can be dropped
+rsq::rsq.partial(objF = m.X3X124, objR = m.X2X14) # 0.004254889
+
+```
+
+
+```{r}
+
+#------------------------------------------------------------------------------- 
+# Part 2: polynomial models
+attach(mydata)
+# 1) Center X1, to resolve multicollinearity
+mydata$X1.centered <- mydata$X1 - mean(mydata$X1)
+
+# 2) squared term of the centered X1 (property age)
+mydata$X1.centered.sq <- mydata$X1.centered ^ 2
+head(mydata)
+
+# 3) Fit the polynominal regression model
+m1 <- lm(Y ~ X1.centered + X1.centered.sq + X2 + X4, data = mydata) # X3 dropped
+summary(m1) 
+# E{Y} = 10.19 - 0.1818(X1.centered) + 0.01415(X1.centered^2) + 0.314(X2) + 0.000008046(X4)
+# E{Y} = 12.495128 − 0.404364 (X1) + 0.01415(X1^2) + 0.314(X2) + 0.000008046(X4)
+
+vif(m1) # acceptable
+
+# Plot the observed Y values against the fitted values from the model
+par(mfrow=c(2, 3))
+plot(mydata$Y, m1$fitted.values, 
+     xlab = "Y_Rental Rates", 
+     ylab = "Fitted Rental Rates", 
+     main = "Observed vs Fitted Rental Rates")
+# residual plots for model diagnostics
+# Checking for linearity, constant variance, and normality of residuals
+plot(m1)
+```
+
+
+
+```{r}
+#------------------------------------------------------------------------------- 
+# Part 4: Test if the square of centered property age (x1^2) can be dropped 
+# from the model; use a = .05. 
+# State the alternatives, decision rule, and conclusion. 
+# What is the p-value of the test?
+
+# m2: additive, reduced model
+m2 <- lm(Y ~ X1.centered + +X2 + X4, data = mydata) # x1^2 dropped
+summary(m2) 
+vif(m2) # good
+summary(m2)$r.squared
+summary(m1)$r.squared
+
+# Compare models
+anova(m2, m1) # p=0.01743 < 0.05 = alpha, suggested to retain x1^2
+rsq::rsq.partial(objF = m1, objR = m2) # 0.07212732, 7% additional.
+# Take m1
+
+
+# disgnostic
+par(mfrow=c(2, 3))
+plot(mydata$Y, m2$fitted.values, 
+     xlab = "Y_Rental Rates", 
+     ylab = "Fitted Rental Rates", 
+     main = "Observed vs Fitted Rental Rates")
+# residual plots for model diagnostics
+# Checking for linearity, constant variance, and normality of residuals
+plot(m2)
+
+
+```
+
+
+
+```{r}
+#------------------------------------------------------------------------------- 
+# Part 5: Convert the final model (m1) to the original variable scales
+m1 <- lm(Y ~ X1.centered + X1.centered.sq + X2 + X4, data = mydata)
+summary(m1)
+# E{Y} = 10.19 - 0.1818(X1-7.864) + 0.01415(X1-7.864)^2 + 0.314(X2) + 0.000008046(X4)
+# E{Y} = 12.495128 − 0.404364 (X1) + 0.01415(X1^2) + 0.314(X2) + 0.000008046(X4)
+
+b0.star <- 10.19
+b1.star <- -0.1818
+b11.star <- 0.01415
+
+X1.bar <- 7.864198 #mean(X1)
+
+b0 <- b0.star - b1.star*(X1.bar) + b11.star*(X1.bar^2) # 12.49483
+b1 <- b1.star -2* (b11.star)*(X1.bar) # -0.4043568
+b11 <- b11.star # 0.01415
+b0; b1; b11
+
+# E{Y} = 12.495 − 0.40436 (X1) + 0.01415(X1^2) + 0.314(X2) + 0.000008046(X4)
+#------------------------------------------------------------------------------- 
+# Estimate the mean rental rate (CI) when X1 = 8, X2 = 16, and X4 = 250,000; 
+# use a 95%  confidence interval. Interpret your interval.
+
+8 - mean(X1)
+# First transform the new X1 values 
+new_data <- data.frame(X1.centered= 8 - mean(X1), 
+                      X1.centered.sq =(8 - mean(X1))^2,
+                      X2 = 16, 
+                      X4 = 250,000)
+
+# 95% confidence interval of E{Y}
+predict(m1, newdata=new_data,interval="confidence", level=.95)
+# Interpretation: We are 95% sure that the mean Y (Rental Rates) for 
+# all observations with X1 (property age) = 8, thus X1.centered = 0.1358025, 
+# X2 (operating expenses and taxes) = 16, and 
+# X4 (total square footage) = 250,000 falls between 14.20138 and 16.18148.
+
+# 95% prediction interval of Y-hat
+predict(m1, newdata=new_data, interval="prediction", level=.95)
+```
+
+

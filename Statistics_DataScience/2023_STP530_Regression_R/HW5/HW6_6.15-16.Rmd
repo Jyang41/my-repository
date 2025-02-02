@@ -1,0 +1,232 @@
+---
+title: "HW5"
+output: word_document
+date: "2023-09-25"
+---
+
+
+## Load packages
+```{r}
+rm(list=ls()) # Clean up the workspace for the new analysis
+
+# Set the following to your own folder
+setwd("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2023_STP530_Regression") 
+
+#-----------------------------------------------------------------------------------------------
+############### Install and load the add-on packages ###############
+
+# install.packages("faraway") 
+#     Tools and datasets for linear and generalized linear models,
+#     aiding data exploration and visualization.
+
+# install.packages("car") 
+#     Utilities for regression diagnostics, hypothesis testing, & data visualization,
+#     complementing the book "An R Companion to Applied Regression.
+
+# install.packages("Hmisc") 
+#     A suite for data analysis, especially in clinical research,
+#     offering data imputation, summarization, and plotting.
+
+# install.packages("psych") 
+#     Designed for psychometric research, it provides tools  
+#     for factor analysis, reliability analysis, and data visualization.
+
+# install.packages("rgl") 
+#     Enables interactive 3D visualizations using OpenGL, 
+#     suitable for visualizing complex datasets and shapes.
+
+
+# load packages: Every time opining a new R session, need to load packages.
+library(faraway)
+library(car)
+library(Hmisc) # describe functions of Hmisc and Psych are same, thus rename it.
+Hmisc.describe <- describe
+library(psych) # describe functions of Hmisc and Psych are same, thus rename it.
+Psych.describe <- describe
+library(rgl)
+```
+
+## Read data, inspect data
+## 6.16a. Histogram for each predictor variable
+```{r}
+############### Read data ###############
+
+Satisfaction <- read.table("CH06PR15.txt")
+head(Satisfaction)
+colnames(Satisfaction) <- c("Satisfaction","Age","Illness", "Anxiety")
+str(Satisfaction) #Displays a concise structure of an R object
+attach(Satisfaction) #Adds a database to R's search path, 
+                     #allowing direct variable referencing. Use with caution.
+
+#-----------------------------------------------------------------------------------------------
+############### Inspect data, histogram for each predictor variable ###############
+Psych.describe(Satisfaction)
+hist(Age, main="Histogram of Age", xlab="Age", col="skyblue", breaks=6)
+hist(Illness, main="Histogram of Illness Severity", xlab="Severity of Illness", col="lightcoral", breaks=20)
+hist(Anxiety, main="Histogram of Anxiety Level", xlab="Anxiety Level", col="lightgreen", breaks=10)
+```
+
+
+## 6.15b. scatter plot matrix and the correlation matrix
+```{r}
+############### scatter plot matrix and the correlation matrix ###############
+pairs(Satisfaction[, 1:4], main="Scatterplot Matrix", pch=19, col="blue")
+# • Satisfaction vs. Age: there's a negative linear relationship, 
+#       as age increases, satisfaction tends to decrease.
+# • Satisfaction vs. Severity: there's a negative trend, 
+#       as the severity of illness increases, satisfaction might decrease.
+# • Satisfaction vs. Anxiety: A negative trend is observed, 
+#       a possible decrease in satisfaction with increasing anxiety levels.
+# • Among predictor variables, there're some positive relationships, 
+#       between Severity and Age, Severity and Anxiety.
+cor(Satisfaction)
+# • Satisfaction & Age: The correlation is -0.787, 
+#     a strong negative relationship.
+# • Satisfaction & Severity: The correlation is -0.603, 
+#     a moderate negative relationship.
+# • Satisfaction &d Anxiety: The correlation is -0.645, 
+#     a moderately strong negative relationship.
+# • Among the predictors, the highest correlation is between Severity & Anxiety 
+#     with a value of 0.671, a moderately strong positive relationship.
+
+```
+
+## 6.15c. Fit regression model 
+State the estimated regression function. 
+How is b2 interpreted here
+```{r}
+############### Fit regression model ###############
+m <- lm(Satisfaction ~ Age + Illness + Anxiety, data=Satisfaction)
+summary(m)
+# Satisfaction = β0 + β1*Age + β2*Illiness + β3*Anxiety
+# Satisfaction = 158.4913 -1.1416*Age -0.4420*Illiness -13.4702*Anxiety
+
+# Coefficient:
+# The intercept (β0) is 158.4913, the estimated satisfaction when all predictor variables are 0.
+
+# For every one-year increase in age, the satisfaction decreases by 1.1416 units, 
+#     holding other variables constant.
+# For every one-unit increase in the severity of illness, the satisfaction 
+#     decreases by 0.4420 units, holding other variables constant.
+# For every one-unit increase in anxiety, the satisfaction decreases by 
+#     13.4702 units, holding other variables constant.
+
+# With α=0.1, Anxiety(p=0.0647) and Age(p=3.81e-06) is significant, but not illness.
+# Age & Anxiety are significant predictors for patient satisfaction.
+# Anxiety has the strongest negative relationship with satisfaction among the 3 predictors.
+
+# Model-fit: 
+# 68.22% (R^2) of the variance in satisfaction is explained by the model.
+# The multiple correlation coefficient r for the regression model is 0.825954 (sqrt 0.6822), 
+#       indicating a reasonably strong correlation between the dependent variable  
+#       (Sarisfaction) and the combined predictor variables (Age, illness, anziety).
+# The model is statistically significant with p=1.542e-10 for the F-statistic (30.05).
+
+# Residual Analysis:
+# The range from -18.3524 to 17.1601, and their median is close to zero (0.5196). 
+# This suggests that the model doesn't systematically overestimate or 
+#                         underestimate satisfaction across the data.
+```
+
+
+## Follow examples in the diagnostics demo R code to conduct diagnostics and reflect on to what extent the sample data support that the assumptions of the normal error regression (NER) model (i.e., ε iid~ N(0,σ^2)) is reasonable. 
+
+```{r}
+############### Residual diagnostics ###############
+
+# (1) Check whether the relationship between Y and each X is linear. 
+# Plot the residuals against each X.
+plot(Age, residuals(m), main = "Residuals against Age", pch=19, col="skyblue")
+abline(h=0)
+plot(Illness, residuals(m), main = "Residuals against Illness", pch=19, col="lightcoral")
+abline(h=0)
+plot(Anxiety, residuals(m), main = "Residuals against Anxiety", pch=19, col="lightgreen")
+abline(h=0)
+# Impression: The residuals do not seem to relate to any Age, Illness,   
+# or Anxiety in a systematic manner.  
+# Thus, the first-order terms of the 3 predictors in model m seems sufficient.
+
+
+# (2) Check for outliers.
+# Plot the studentized residuals against Y-hat.
+plot(predict(m), rstudent(m), main = "Studentized residuals vs Y-hat",
+     pch=16, col="red")
+text(predict(m), rstudent(m), names(rstudent(m)), cex=0.6, font=2)
+abline(h=0)
+outliers <- rstudent(m)[abs(rstudent(m)) > 2] #potential outlier grater than 2
+outliers
+# Impression: All studentized residuals are in a reasonable range given the 
+# approximate 1-2-3 rule. 
+
+
+# (3) Check for heteroskedasticity
+# Plot the residuals against Y-hat
+plot(predict(m), residuals(m))
+# Impression: The vertical spread of the points are roughly constant across
+# different X values. No concern of keteroskedasticity.
+
+
+# (4) Check whether the residuals are normally distributed.
+# Create the QQ-plot of the residuals.
+qqnorm(residuals(m), col="red")
+qqline(residuals(m)) # Our plot shows a slight deviation in the tails but 
+#                    is mostly aligned with the line, suggesting 
+#                    the residuals are approximately normally distributed.
+hist(residuals(m), breaks=10) 
+
+# log-transformed model
+Satisfaction$log.Satisfaction <- log(Satisfaction$Satisfaction)
+logmod <- lm(log.Satisfaction ~ Age + Illness + Anxiety, data=Satisfaction, na.action=na.exclude)
+plot(fitted(logmod), rstudent(logmod)) # Residual plot of the log-transformed model
+qqnorm(residuals(logmod), main="QQ of log-transformed model", col="blue") # Q-Q plot of the log-transformed model
+qqline(residuals(logmod)) # Residuals appear to deviate from the line, tail and head
+hist(residuals(logmod)) # skewed? Not bell-shape
+
+# Box-cox transformation: Transform Y with the lambda power and fit the model again
+lambda <- powerTransform(m)$lambda
+lambda
+Satisfaction$bc.Satisfaction <- Satisfaction$Satisfaction ^ lambda
+bc.mod <- lm(bc.Satisfaction ~ Age + Illness + Anxiety, data=Satisfaction, na.action=na.exclude)
+plot(fitted(bc.mod), rstudent(bc.mod)) # Residual plot of the box-cox-transformed model
+qqnorm(residuals(bc.mod), main="QQ of BC-transformed model", col="darkgreen") 
+# Q-Q plot of the box-cox-transformed model
+qqline(residuals(bc.mod)) # Residuals appear to deviate from the line, tail and head
+hist(residuals(bc.mod)) # skewed. Distribution is not well bell-curved.
+
+# Shapiro test. 
+# ncvTest() function from the car package performs a non-constant variance score test
+# (known as the Breusch-Pagan test) to test for heteroscedasticity in a linear regression model. 
+# H0: the variances of the residuals are constant (homoscedasticity), 
+# H1: they are not constant (heteroscedasticity).
+ncvTest(logmod)
+ncvTest(bc.mod)
+ncvTest(m)
+# impression: p=value for all 3 transformed models are high. 
+# There's no evidence to reject H0, meaning homoscedastic.
+
+
+# (5) whether the observations are independent from each other
+# Each row in the data represents a patient. 
+# Also, residuals fluctuate in a more or less random pattern around the baseline 0.
+# Thus, it is reasonable to assume the patients are independent with respect to
+# the three measures involved in this regression problem.
+
+# Summary:the assumptions of the normal error regression (NER) model 
+# (i.e., ε iid~ N(0,σ^2)) is reasonable. 
+# (1) The relationship between Y and each X is linear, 
+# (2) No outlier
+# (3) Homoscedastic: The variance of the errors is constant across all levels of the independent variables.
+# (4) ε (0,σ^2): slightly deviated in the tails but is mostly aligned with the line, 
+#             suggesting the residuals are approximately normally distributed.
+# (5) independent observations: patients are independent 
+
+```
+
+CI for coefficient
+```{r}
+############### CI for coefficient ###############
+# b1 +/- qt*s(bi)
+qt(p=1-0.1/2, 46-4)
+# 90% CI for β1, β2, β3
+confint(m, level = 0.9)
+```

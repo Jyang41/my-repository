@@ -1,0 +1,232 @@
+---
+title: "HW4_3.25"
+output: word_document
+date: "2023-09-19"
+---
+
+
+
+### Import data
+```{r}
+# Clean up the workspace for the new analysis
+rm(list=ls()) 
+
+# Set the following to YOUR OWN folder
+setwd("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2023_STP530_Regression")
+
+# Import the dataset. The txt data file needs to exist in the folder above.
+mydata <- read.table("APPENC02.txt")
+head(mydata)
+
+# Rename the columns
+colnames(mydata) <- c("ID","Country", "State", "Area.2mile", "Population", "Age18to34.pst", 
+                      "Age65over.pst", "Physician.no", "bed.no", "crime.no", "hischool.pst",
+                      "BS.pst", "Low.income.pst", "unemployment.pst", "Per.income.dollar",
+                      "TO.income.m", "Geo"
+                      ) # Rename the columns
+head(mydata)
+
+```
+
+### Fitted plot, linear regression model and possible outliers
+```{r}
+# Fit the linear regression model
+Y <- mydata$Physician.no
+
+m1 <- lm(Y~ Population, data=mydata) #related to total population
+plot(Y~ Population, data=mydata,
+     xlab="Total polulation",
+     ylab="The number of active physicians in a CDI")
+abline(coef(m1), col="red", lty=3, lwd=2)
+summary(m1)
+
+m2 <- lm(Y~ bed.no, data=mydata) #related to number of hospital beds
+plot(Y~ bed.no, data=mydata,
+     xlab="Hospital beds")
+abline(coef(m2), col="blue", lty=2, lwd=2)
+summary(m2)
+
+m3 <- lm(Y~ TO.income.m, data=mydata) #related to total personal income.
+plot(Y~ TO.income.m, data=mydata,
+     xlab="Total personal income milions")
+abline(coef(m3), col="forestgreen",lty=1, lwd=2)
+summary(m3)
+
+# Possible outliners, by examining the histogram of each variable 
+hist(mydata$Population)
+hist(mydata$bed.no)
+hist(mydata$TO.income.m)
+# appears that there are a couple outliers
+```
+
+
+### Fit a multiple regression model.
+```{r}
+# scatter plot matrix 
+pairs(mydata[, 5:16])
+
+# regression models
+mod1 <- lm(Y ~ Population, data=mydata, na.action=na.exclude)
+summary(mod1)
+
+mod2 <- lm(Y ~ bed.no, data=mydata, na.action=na.exclude)
+summary(mod2)
+ 
+mod3 <- lm(Y ~ TO.income.m, data=mydata, na.action=na.exclude)
+summary(mod3)
+```
+
+
+# Problems:
+###(1) Plot the residuals against the predictor (or Y-hat).
+(a) Whether there seems to be a linear or non-linear relationship?
+(b) Is the residuals heteroskedastic? variance (vertical spread) across the board
+Funnel shape opening to the right: heteroskedasticity pattern, a Poisson distribution
+```{r}
+# Residuals vs. Predictor for Model 1 (Population)
+plot(fitted(mod1), residuals(mod1), main="Residuals vs. Population")
+abline(h=0, col="red")
+
+# Residuals vs. Predictor for Model 2 (Number of Beds)
+plot(fitted(mod2), residuals(mod2), main="Residuals vs. Number of Beds")
+abline(h=0, col="blue")
+
+# Residuals vs. Predictor for Model 3 (Total Personal Income)
+plot(fitted(mod3), residuals(mod3), main="Residuals vs. Total Personal Income")
+abline(h=0, col="forestgreen")
+
+
+# Also, may plot the residuals against each X to see whether the nonlinear trend in the residuals might be potentially related to one of the Xs.
+plot(mydata$Population, residuals(mod1))
+plot(mydata$bed.no, residuals(mod2))
+plot(mydata$TO.income.m, residuals(mod3))
+```
+
+### Regression outliers
+```{r}
+# Studentized residual plot
+plot(fitted(mod1), rstudent(mod1))
+plot(fitted(mod2), rstudent(mod2))
+plot(fitted(mod3), rstudent(mod3))
+
+# find out which point is the outlier
+plot(fitted(mod1), rstudent(mod1), type="n")
+text(fitted(mod1), rstudent(mod1), names(rstudent(mod1)))
+
+plot(fitted(mod2), rstudent(mod2), type="n")
+text(fitted(mod2), rstudent(mod2), names(rstudent(mod2)))
+
+plot(fitted(mod3), rstudent(mod3), type="n")
+text(fitted(mod3), rstudent(mod3), names(rstudent(mod3)))
+
+```
+
+# Problems:
+### (2) Whether the residuals are normally distributed
+Histogram or QQ-plot
+QQ-plot: The more straight line, the more normal
+Data do not fit well.
+```{r}
+# Histogram
+hist(residuals(mod1), main="Histogram for Model 1 Residuals")
+hist(residuals(mod2), main="Histogram for Model 2 Residuals")
+hist(residuals(mod3), main="Histogram for Model 3 Residuals")
+
+# Q-Q plot for model 1
+qqnorm(residuals(mod1), main ="QQ-plot for Model 1 Residuals")
+qqline(residuals(mod1), col="red", lwd=2)
+
+# Q-Q plot for model 2
+qqnorm(residuals(mod2), main ="QQ-plot for Model 2 Residuals")
+qqline(residuals(mod2), col="blue", lwd=2)
+
+# Q-Q plot for model 3
+qqnorm(residuals(mod3), main ="QQ-plot for Model 3 Residuals")
+qqline(residuals(mod3), col="forestgreen", lwd=2)
+```
+
+### Log-regression models 
+
+```{r}
+#-------------------------------------------------
+# Transform Y with log(), fit the new model, and repeat the diagnostics
+mydata$log.Physician.no <- log(mydata$Physician.no)
+logmod1 <- lm(log.Physician.no ~ Population, data=mydata, na.action=na.exclude)
+plot(mydata$Population, residuals(logmod1))
+qqnorm(residuals(logmod1), main="QQ-plot for log.Mod-1 Residuals.")
+qqline(residuals(logmod1), col="red", lwd=2)
+summary(logmod1)
+
+logmod2 <- lm(log.Physician.no ~ bed.no, data=mydata, na.action=na.exclude)
+plot(mydata$bed.no, residuals(logmod2))
+qqnorm(residuals(logmod2), main="QQ-plot for log.Mod-2 Residuals.")
+qqline(residuals(logmod2), col="blue", lwd=2)
+summary(logmod2)
+
+logmod3 <- lm(log.Physician.no ~ TO.income.m, data=mydata, na.action=na.exclude)
+plot(mydata$TO.income.m, residuals(logmod3))
+qqnorm(residuals(logmod3), main="QQ-plot for log.Mod-3 Residuals.")
+qqline(residuals(logmod3), col="blue", lwd=2)
+summary(logmod3)
+```
+
+### Identify outliers
+```{r}
+# You can use the following code to identify the outlier
+plot(fitted(logmod1), rstudent(logmod1), type='n')
+text(fitted(logmod1), rstudent(logmod1), names(rstudent(logmod1)))
+rstudent(logmod1)[1] # outlier check
+outliers_gt_2 <- rstudent(logmod1)[abs(rstudent(logmod1)) > 2] # outliers >2
+print(outliers_gt_2)
+
+plot(fitted(logmod2), rstudent(logmod2), type='n')
+text(fitted(logmod2), rstudent(logmod2), names(rstudent(logmod2)))
+rstudent(logmod2)[1] # outlier check
+outliers_gt_2 <- rstudent(logmod2)[abs(rstudent(logmod2)) > 2] # outliers >2
+print(outliers_gt_2)
+
+plot(fitted(logmod3), rstudent(logmod3), type='n')
+text(fitted(logmod3), rstudent(logmod3), names(rstudent(logmod3)))
+rstudent(logmod3)[1] # outlier check
+outliers_gt_2 <- rstudent(logmod3)[abs(rstudent(logmod3)) > 2] # outliers >2
+print(outliers_gt_2)
+
+# Remove the outliers discovered and call the new data as XX.reduced
+mydata.reduced <- mydata[-c(1, 2),] #remove two outliers
+```
+
+### Log-regression models on the 'reduced' data
+```{r}
+# Fit the log-transformed model on the reduced data
+logmod1.reduced <- lm(log(Physician.no) ~ Population, data=mydata.reduced, na.action=na.exclude)
+logmod2.reduced <- lm(log(Physician.no) ~ bed.no, data=mydata.reduced, na.action=na.exclude)
+logmod3.reduced <- lm(log(Physician.no) ~ TO.income.m, data=mydata.reduced, na.action=na.exclude)
+
+# Residual plot of the log-transformed model
+plot(fitted(logmod1.reduced), rstudent(logmod1.reduced), main="log.mod1.reduced")
+plot(fitted(logmod2.reduced), rstudent(logmod2.reduced), main="log.mod2.reduced")
+plot(fitted(logmod3.reduced), rstudent(logmod3.reduced), main="log.mod3.reduced")
+```
+
+### Q-Q plot of the log-transformed model
+It looks better now.
+```{r}
+# Q-Q plot of the log-transformed model
+qqnorm(residuals(logmod1.reduced), main="QQ-plot for log.Mod1.reduced Residuals")
+qqline(residuals(logmod1.reduced), col="red", lwd=2)
+
+qqnorm(residuals(logmod2.reduced), main="QQ-plot for log.Mod2.reduced Residuals")
+qqline(residuals(logmod2.reduced), col="blue", lwd=2)
+
+qqnorm(residuals(logmod3.reduced), main="QQ-plot for log.Mod3.reduced Residuals")
+qqline(residuals(logmod3.reduced), col="forestgreen", lwd=2)
+```
+
+### summary table
+```{r}
+summary(logmod1.reduced)
+summary(logmod2.reduced)
+summary(logmod3.reduced)
+```
+
+

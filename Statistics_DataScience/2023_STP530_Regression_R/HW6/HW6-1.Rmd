@@ -1,0 +1,173 @@
+---
+title: "HW6-1"
+output: word_document
+date: "2023-09-30"
+---
+
+## Import data
+```{r}
+rm(list=ls()) # Clean up the workspace for the new analysis
+# load packages: Every time opining a new R session, need to load packages.
+library(faraway)
+library(car)
+library(Hmisc) # describe functions of Hmisc and Psych are same, thus rename it.
+Hmisc.describe <- describe
+library(psych) # describe functions of Hmisc and Psych are same, thus rename it.
+Psych.describe <- describe
+library(rgl)
+library(rsq)
+
+# Set the following to your own folder 
+setwd("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2023_STP530_Regression/HW6")
+
+############### Read data, check data ###############
+Satisfaction <- read.table("CH06PR15.txt")
+head(Satisfaction)
+colnames(Satisfaction) <- c("Satisfaction","Age","Illness", "Anxiety")
+str(Satisfaction) #Displays a concise structure of an R object
+attach(Satisfaction) #Adds a database to R's search path, 
+#allowing direct variable referencing. Use with caution.
+
+```
+
+## 7.5a.Obtain the analysis of variance table that decomposes the regression sum of squares into extra sums of squares associated with X2; with X1, given X2; and with X3, given X2 and X1.
+
+```{r}
+################ Fit the 2nd model ###############
+# Residual diagnostics are done in the previous HW5
+
+# 7.5 Fit the 2nd model X2, X1, X3.
+m1 <- lm(Satisfaction ~ Age + Illness + Anxiety, data = Satisfaction)
+m2 <- lm(Satisfaction ~ Illness + Age + Anxiety, data = Satisfaction)
+summary(m2)
+anova(m2)
+
+n <- 46
+p <- 4
+SSR <- 4860.3 + 3896.0 + 364.2
+SSE <- 4248.8
+SSTO <- SSR + SSE
+MSE <- 101.2
+MSR <- SSR / (p-1)
+MSTO <- SSTO / (n-1)
+SSR;SSE;SSTO
+MSR;MSE;MSTO
+```
+
+
+## 7.5b. whether X3 can be dropped from the reg. model given X1 & X2 being retained.
+
+```{r}
+################ The F-test of extra sum of squares ################
+# H0: β3=0, X3 can be dropped.
+# H1: β1≠0, X3 should be included in the model.
+MSR.X3 <- 364.2
+MSE <- 101.2
+F.obs.X3 <- MSR.X3/MSE
+F.obs.X3
+1-pf(q=F.obs.X3, df1=1, df2=42)
+pf(q = F.obs.X3, df1 = 1, df2 = 42, lower.tail=F)
+anova(m2)
+# Conclusion: With p=0.06471098 >α, we failed to reject H0: β3=0. 
+# There is not enough evidence suggesting that X3 should be included. 
+# Thus, X3 can be dropped from the model. 
+
+# -------------------------------------------------------------------------
+# Effect size by X3, partial R-squared
+# R2.Y3_12 <- SSR(X3|X1,2)/SSE(X1,2)
+# R2.Y3_12 <- SSR3_12/SSE.m3
+m3 <- lm(Satisfaction ~ Illness + Age, data = Satisfaction )
+anova(m3)
+SSE.m3 <- 4613.0
+SSR3_12 <- 364.2
+R2.Y3_12 <- SSR3_12/SSE.m3
+
+# R2.Y3_12_1 <- (SSE.m3-SSE.m2)/SSE.m3
+SSE.m2 <- 4248.8
+R2.Y3_12_1 <- (SSE.m3-SSE.m2)/SSE.m3
+R2.Y3_12; R2.Y3_12_1
+
+# Verify with what an add-on function gives:
+rsq::rsq.partial(objF = m2, objR = m3)
+
+# The effect size by addubg X3 is 7.89%.
+# By addubg X3 to the model where X1 and X2 already exist, the variation in Y
+# unexplained by the model reduces by R2y_X3|X1,2 is 7.89%.
+
+# -------------------------------------------------------------------------
+# general linear test approach
+m.F <- lm(Satisfaction ~ Illness + Age + Anxiety, data = Satisfaction)
+m.R <- lm(Satisfaction ~ Illness + Age, data = Satisfaction )
+# F-test comparing the two models
+anova(m.R, m.F)
+# Effect size: partial R-squared
+rsq::rsq.partial(objF = m.F, objR = m.R)
+# Impression: The anova comparison shows that the difference between two models  
+# are not significant with the p=0.0648.The effect size by the X3 is 7.89%.
+
+```
+
+## 7.6. whether both X2 and X3 can be dropped from the regression model given that X1 is retained.
+```{r}
+# Use "general linear test approach"
+# H0: β2 = β3 = 0. Both X2 & X3 can be dropped. Reduced model is better.
+# H1: β2≠0 or β3≠0. X2, X3 or both should be included. Full model is better. 
+
+m.F <- lm(Satisfaction ~ Age + Illness + Anxiety, data=Satisfaction)
+m.R <- lm(Satisfaction ~ Age, data=Satisfaction)
+anova(m.R, m.F)
+F.obs <- 4.1768 # From anova result
+SSR12_1 <- 845.07 # From anova result
+SSE.m.R <- 5093.9 # From anova result
+SSE.m.F <- 4248.8 # From anova result
+MSE.m.F <- SSE.m.F /42 # From anova result
+F_obs <- ((SSE.m.R-SSE.m.F)/2) / MSE.m.F # From anova result
+F..obs <- ((SSR12_1)/2) / MSE.m.F # From anova result
+F.obs; F_obs; F..obs
+1-pf(q=F.obs, df1=2, df2=42) # From anova result
+# Impression: With p=0.02216 < α=0.025, we have enough evidence to reject H0.
+# We conclude that the full model fits the data significantly better than 
+# the reduced model. At least one or more of X2 and X3 should be included in the model.
+
+# Effect size
+rsq::rsq.partial(objF = m.F, objR = m.R)
+# The effect size by both X2 & X3 is 16.59%. By adding both X2 and X3 to the 
+# model given X1, the Y unexplained reduces by 16.59%.
+```
+
+## 7.9. Test whether β1 = -1.0 and, β2 = 0; use α = 0.025.
+```{r}
+# -------------------------------------------------------------------------
+# Test whether β1 = -1.0 and, β2 = 0; use α = 0.025.
+# Y = β0 -1*X1 + 0*X2 + β3*X3
+# Y + X1 = β0 + β3X3
+# Full model
+data.full <- Satisfaction
+data.full$Y <- data.full$Satisfaction
+m.F <- lm(Y ~ Age + Illness + Anxiety, data=data.full)
+# Reduced model
+data.reduced <- Satisfaction
+data.reduced$Y <- with(Satisfaction, Satisfaction + Age) # Y + X1
+m.R <- lm(Y ~ Anxiety, data=data.reduced) # β0 + β3X3
+# F-test comparing the two models
+anova(m.R, m.F)
+F_obs <- 0.8838
+# F = {SSE(R-F)/DFe(R-F)}/ (SSE.F/DFe.F)
+F.obs <- ((4427.7 - 4248.8)/(44-42))/(4248.8/42)
+# F = {SSR.delta/Df}/ MSE
+SSR.delta <- 178.81
+F..obs <- (SSR.delta/2)/(4248.8/42)
+F_obs; F.obs; F..obs
+
+1-pf(q=0.8838, df1=44-42, df2=42)
+# With p=0.4207535 > α= 0.025, we fail to reject H0.
+# There isn't enough evidence suggesting that the constraints β1=-1 and β2=0 
+# are significantly different to the full model.
+# The constrained model fits the data about as well as the full model.
+
+# Effect size: partial R-squared
+rsq::rsq.partial(objF = m.F, objR = m.R)
+# The effect size is 56.47%
+```
+
+
