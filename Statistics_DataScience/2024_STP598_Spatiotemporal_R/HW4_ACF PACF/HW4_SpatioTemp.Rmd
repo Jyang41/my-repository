@@ -1,0 +1,198 @@
+---
+title: "HW4_SpatioTemp"
+author: "Jiseon Yang"
+date: "2024-11-18"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Question 2.
+## calculation
+
+```{r }
+h = (0:10)
+rho= (-0.8)^h * (1 + 9/41 *h)
+rho
+```
+
+## ARMAcf function
+
+```{r }
+# Define the AR coefficients
+phi <- c(-1.6, -0.64)
+
+# Compute the ACF up to lag 10
+acf_values <- ARMAacf(ar = phi, lag.max = 10)
+
+# Plot the ACF
+plot(0:10, acf_values, type = "h", xlab = "Lag", ylab = "ACF", main = "ACF of AR(2) Process")
+
+```
+
+
+
+## Compare results
+
+```{r }
+rbind(rho,acf_values)
+```
+
+
+
+## Question 3/
+
+
+```{r}
+library(astsa)  # for time series functions
+library(ggplot2)  # for enhanced plotting if needed
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Set parameters
+n <- 100
+phi <- 0.6   # AR(1) parameter
+theta <- 0.9 # MA(1) and ARMA(1,1) parameter
+
+# (a): Generate AR(1) model data with phi = 0.6
+ar1_data <- arima.sim(list(order = c(1, 0, 0), ar = phi), n = n)
+
+par(mfrow = c(1, 2))
+acf(ar1_data, main = "AR(1) ACF")
+pacf(ar1_data, main = "AR(1) PACF")
+
+# (b): Generate MA(1) model data with theta = 0.9
+ma1_data <- arima.sim(list(order = c(0, 0, 1), ma = theta), n = n)
+
+par(mfrow = c(1, 2))
+acf(ma1_data, main = "MA(1) ACF")
+pacf(ma1_data, main = "MA(1) PACF")
+
+# (c): Generate ARMA(1,1) model data with phi = 0.6 and theta = 0.9
+arma11_data <- arima.sim(list(order = c(1, 0, 1), ar = phi, ma = theta), n = n)
+
+par(mfrow = c(1, 2))
+acf(arma11_data, main = "ARMA(1,1) ACF")
+pacf(arma11_data, main = "ARMA(1,1) PACF")
+
+# Analyze Tailing Behavior
+cat("Tailing Behavior Analysis:\n")
+cat("1. For AR(1), ACF tails off gradually, while PACF cuts off after lag 1.\n")
+cat("2. For MA(1), ACF cuts off after lag 1, while PACF tails off gradually.\n")
+cat("3. For ARMA(1,1), both ACF and PACF tail off gradually.\n")
+```
+```{r}
+# Define AR parameters and noise variance
+phi <- -0.9
+sigma_w <- 1  # Given
+
+# Compute theoretical variance for AR(2)
+gamma_0 <- sigma_w^2 / (1 - phi^2)  # Variance of x_t
+gamma_1 <- phi * gamma_0            # Covariance between x_t and x_{t-1}
+
+# These values represent sigma^2_0 and sigma^2_1
+sigma2_0 <- gamma_0
+sigma2_1 <- gamma_1
+
+cat("Stationary values found:\n")
+cat("sigma^2_0 =", sigma2_0, "\n")
+cat("sigma^2_1 =", sigma2_1, "\n")
+```
+
+
+
+```{r}
+# Set parameters
+set.seed(123)  # For reproducibility
+n <- 100
+phi <- -0.9
+sigma_w <- 1
+sigma_v <- 1
+
+# Compute stationary variance
+sigma2_0 <- sigma_w^2 / (1 - phi^2)  # Variance of x_t
+sigma2_1 <- sigma2_0  # Stationarity ensures same variance for x_{t-1}
+
+# Initialize vectors for x_t and y_t
+x <- numeric(n)
+y <- numeric(n)
+
+# Generate white noise for w_t and v_t
+w <- rnorm(n, mean = 0, sd = sigma_w)
+v <- rnorm(n, mean = 0, sd = sigma_v)
+
+# Initialize x[1] and x[2] with stationary variances
+x[1] <- rnorm(1, mean = 0, sd = sqrt(sigma2_0))
+x[2] <- rnorm(1, mean = 0, sd = sqrt(sigma2_1))
+
+# Simulate x_t as an AR(2) process
+for (t in 3:n) {
+  x[t] <- phi * x[t - 2] + w[t]
+}
+
+
+# Generate observed values y_t
+y <- x + v
+
+# Plot time series
+par(mfrow = c(1, 2))  # Arrange plots vertically
+plot(x, type = "l", col = "blue", main = "System Process x_t", ylab = "x_t")
+plot(y, type = "l", col = "red", main = "Observed Process y_t", ylab = "y_t")
+
+
+# Plot ACF and PACF
+par(mfrow = c(1, 2))  # Arrange plots in 2x2 grid
+acf(x, main = "ACF of x_t", lag.max = 20)
+pacf(x, main = "PACF of x_t", lag.max = 20)
+acf(y, main = "ACF of y_t", lag.max = 20)
+pacf(y, main = "PACF of y_t", lag.max = 20)
+
+
+
+```
+```{r}
+set.seed(123)  # For reproducibility
+n <- 100  # Number of observations
+phi <- -0.9  # AR(2) coefficient
+sigma_w <- 1  # Process noise variance
+sigma_v <- 10  # Observation noise variance (increased)
+
+# Compute stationary variance for AR(2)
+sigma2_0 <- sigma_w^2 / (1 - phi^2)  # Variance of x_t
+
+# Initialize vectors for x_t and y_t
+x <- numeric(n)
+y <- numeric(n)
+
+# Generate white noise for w_t and v_t
+w <- rnorm(n, mean = 0, sd = sigma_w)
+v <- rnorm(n, mean = 0, sd = sigma_v)
+
+# Initialize the first two values based on the stationary variance
+x[1] <- rnorm(1, mean = 0, sd = sqrt(sigma2_0))
+x[2] <- rnorm(1, mean = 0, sd = sqrt(sigma2_0))
+
+# Simulate x_t as an AR(2) process
+for (t in 3:n) {
+  x[t] <- phi * x[t - 2] + w[t]
+}
+
+# Generate observed values y_t
+y <- x + v
+
+# Plot time series
+par(mfrow = c(1, 2))
+plot(x, type = "l", col = "blue", main = "System Process x_t", ylab = "x_t")
+plot(y, type = "l", col = "red", main = "Observed Process y_t (σ_v = 10)", ylab = "y_t")
+
+# Plot ACF and PACF for x_t and y_t
+par(mfrow = c(1, 2))
+acf(x, main = "ACF of x_t", lag.max = 20)
+pacf(x, main = "PACF of x_t", lag.max = 20)
+acf(y, main = "ACF of y_t (σ_v = 10)", lag.max = 20)
+pacf(y, main = "PACF of y_t (σ_v = 10)", lag.max = 20)
+```

@@ -1,0 +1,127 @@
+---
+title: "HW3-new"
+author: "Jiseon Yang"
+date: "2024-11-10"
+output: word_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+options(width = 1000)
+```
+
+## Question 1
+
+Compute the coherence (generalized correlation), $\frac{\mathrm{cov}(Y_\ell({\bf s}), Y_{\ell'}({\bf s}+{\bf h}))}{\sqrt{\mathrm{cov}(Y_\ell({\bf s}), Y_\ell({\bf s}+{\bf h})) \mathrm{cov}(Y_{\ell'}({\bf s}), Y_{\ell'}({\bf s}+{\bf h})) }}$:
+
+(a) for the cross-covariance $\Sigma_{{\bf Y}({\bf s}),{\bf Y}({\bf s}')} = C({\bf s}-{\bf s}') = \sum_{j=1}^p \rho_j({\bf s}-{\bf s}') T_j$.
+
+(b) for the cross-covariance $C({\bf s}-{\bf s}') = \sum_{u=1}^r \rho_u({\bf s}-{\bf s}') T^{(u)}$.
+
+
+
+## Question 2
+
+Let $Y({\bf s}) = (Y_1({\bf s}), Y_2({\bf s}))^T$ be a bivariate process with a stationary cross-covariance matrix function
+$$C({\bf s}-{\bf s}') = \begin{pmatrix} c_{11}({\bf s}-{\bf s}') & c_{12}({\bf s}-{\bf s}')\\ c_{12}({\bf s}'-{\bf s}) & c_{22}({\bf s}-{\bf s}') \end{pmatrix}$$
+and a set of covariates ${\bf x}({\bf s})$. Let ${\bf y}=({\bf y}_1^T, {\bf y}_2^T)^T$ be the $2n\times 1$ data vector, with ${\bf y}_1^T = (y_1({\bf s}_1), \cdots, y_1({\bf s}_n))^T$ and ${\bf y}_2^T = (y_2({\bf s}_1), \cdots, y_2({\bf s}_n))^T$.
+
+(a) Show that the cokriging predictor has the form $$\mathrm{E}[Y_1({\bf s}_0)|{\bf y}] = {\bf x}^T({\bf s}_0)\boldsymbol\beta + \boldsymbol\gamma^T \Sigma^{-1}({\bf y} - X\boldsymbol\beta)$$, with appropriate definitions of $\boldsymbol\gamma$ and $\Sigma$.
+
+
+(b) Show further that if ${\bf s}_k$ is a site where $y_l({\bf s}_k)$ is observed, then for $l=1,2$, $\mathrm{E}[Y_l({\bf s}_k)|{\bf y}]=y_l({\bf s}_k)$ if and only if $\tau^2_l=0$.
+
+
+## Question 3
+
+For a moving average process of the form
+$$x_t = w_{t-1} + 2 w_t +  w_{t+1}$$
+where $w_t$ are independent with zero means and variance $\sigma^2_w$, determine the autocovariance and autocorrelation functions as a function of lag $h=s-t$ and plot the ACF as a function of $h$.
+
+
+```{r}
+# Define the parameters
+sigma_w2 <- 1  # Variance of w_t
+
+# Function to calculate autocovariance for a given lag h
+calc_autocovariance <- function(h) {
+  if (h == 0) {
+    # Variance at lag 0
+    return(6 * sigma_w2)
+  } else if (h == 1) {
+    # Covariance at lag 1
+    return(4 * sigma_w2)
+  } else if (h == 2) {
+    # Covariance at lag 2
+    return(1 * sigma_w2)
+  } else {
+    # Covariance for h >= 3
+    return(0)
+  }
+}
+
+# Calculate autocovariance values for lags 0 to 4
+lags <- 0:4
+gamma_values <- sapply(lags, calc_autocovariance)
+
+# Calculate autocorrelation values
+gamma_0 <- gamma_values[1]  # Autocovariance at lag 0
+rho_values <- gamma_values / gamma_0
+
+# Print autocovariance and autocorrelation values
+cat("Autocovariance values:\n")
+print(gamma_values)
+cat("Autocorrelation values:\n")
+print(rho_values)
+
+# Plot the ACF
+plot(lags, rho_values, type = "h", main = "ACF for the Moving Average Process",
+     xlab = "Lag (h)", ylab = "ACF", col = "blue", lwd = 2)
+points(lags, rho_values, col = "red", pch = 16)
+abline(h = 0, col = "gray", lty = 2)
+
+```
+
+
+
+
+
+
+## Question 4
+
+In this problem, we explore the difference between a random walk and a trend stationary process.
+
+(a) Generate four series that are random walk with drift, $x_t = \delta t + \sum_{i=1}^t w_j$, of length $n=100$ with $\delta=0.01$ and $\sigma_w=1$. Call the data $x_t$ for $t=1,\cdots, 100$. Fit the regression $x_t = \beta t + w_t$ using least squares. Plot the data, the true mean function (i.e. $\mu_t = 0.01t$) and the fitted line, $\hat x_t = \hat\beta t$, on the same graph. Hint: The following `R` code may be useful.
+
+```{r, eval=F}
+par(mfrow=c(2,2), mar=c(2.5,2.5,0,0)+.5, mgp=c(1.6,.6,0)) # set up 
+for (i in 1:4){
+  x = ts(cumsum(rnorm(100,.01,1)))        # data
+  regx = lm(x~0+time(x), na.action=NULL)  # regression
+  plot(x, ylab='Random Walk w Drift')     # plots
+  abline(a=0, b=.01, col=2, lty=2)        # true mean (red - dashed)
+  abline(regx, col=4)                     # fitted line (blue -  solid)
+}
+```
+
+(b) Generate four series of length $n=100$ that are linear trend plus noise, say $y_t =0.01t +w_t$, where $t$ and $w_t$ are as in part (a). Fit the regression $y_t = \beta t +w_t$ using least squares. Plot the data, the true mean function (i.e. $\mu_t=0.01 t$) and the fitted line, $\hat y_t = \hat\beta t$, on the same graph.
+
+```{r}
+set.seed(123)  # For reproducibility
+par(mfrow = c(2, 2), mar = c(2.5, 2.5, 0, 0) + 0.5, mgp = c(1.6, 0.6, 0))
+
+# Generate 4 series of linear trend plus noise and plot
+for (i in 1:4) {
+  t = 1:100  # Time index
+  y = 0.01 * t + rnorm(100, 0, 1)  # Generate data: linear trend + noise
+  regy = lm(y ~ 0 + t, na.action = NULL)  # Fit regression: y_t = beta * t + w_t
+  plot(y, type = "l", ylab = 'Linear Trend + Noise', main = paste("Series", i))
+  abline(a = 0, b = 0.01, col = 2, lty = 2)  # True mean function (red, dashed)
+  abline(regy, col = 4)  # Fitted line (blue, solid)
+}
+
+```
+
+(c) Comment (what did you learn from this assignment).

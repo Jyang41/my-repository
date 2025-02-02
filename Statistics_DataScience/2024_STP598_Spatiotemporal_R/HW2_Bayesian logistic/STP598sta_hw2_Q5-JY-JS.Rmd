@@ -1,0 +1,407 @@
+---
+title: "STP598sta: Spatiotemporal Analysis"
+subtitle: "Homework 2_question5"
+author: "Jiseon Yang"
+date: "Due 11:59pm Friday October 11, 2024"
+output:
+  # pdf_document: default
+  # html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+options(width = 1000)
+```
+
+
+
+## Question 5
+
+The lithology data set (see [https://www.counterpointstat.com/uploads/1/1/9/3/119383887/lithology.dat](https://www.counterpointstat.com/uploads/1/1/9/3/119383887/lithology.dat)) consists of measurements taken at 118 sample sites in the Radioactive Waste Management Complex region of the Idaho National Engineering and Environmental Laboratory. At each site, bore holes were drilled and measurements taken to determine the elevation and thickness of the various underground layers of soil and basalt. Understanding the spatial distribution of variables like these is critical to predicting fate and transport of groundwater and the (possibly harmful) constituents carried therein; see Leecaster (2002) for full details. For this problem, consider only the variables `Northing`, `Easting`, `Surf Elevation`, `Thickness`, and `A-B Elevation`, and only those records for which full information is available (i.e., extract only those data rows without an ``NA" for any variable).
+
+(a) Produce image plots of the variables `Thickness`, `Surf Elevation`, and `A-B Elevation`. Add contour lines to each plot and comment on the descriptive topog- raphy of the region.
+
+```{r}
+
+# Load the data
+lithology <- read.csv("C:\\Users\\sonjh\\Downloads\\lithology data set.csv", header = TRUE)
+ 
+# Rename the first five columns of the lithology data
+colnames(lithology)[1:6] <- c("wellname", "Northing", "Easting", "Surf_Elevation", "Thickness", "A_B_Elevation")
+
+colnames(lithology)
+head(lithology)
+
+# Convert columns to numeric explicitly, removing non-numeric characters
+lithology$Northing <- as.numeric(gsub(",", "", lithology$Northing))
+lithology$Easting <- as.numeric(gsub(",", "", lithology$Easting))
+lithology$Surf_Elevation <- as.numeric(gsub(",", "", lithology$Surf_Elevation))
+lithology$Thickness <- as.numeric(gsub(",", "", lithology$Thickness))
+lithology$A_B_Elevation <- as.numeric(gsub(",", "", lithology$A_B_Elevation))
+
+# Filter data to remove rows with NA values
+lithology_new <- na.omit(lithology[, c("Northing", "Easting", "Surf_Elevation", "Thickness", "A_B_Elevation")])
+
+num_na_omitted <- nrow(lithology) - nrow(lithology_new)
+cat("Number of rows with NA values omitted:", num_na_omitted, "\n")
+
+head(lithology_new)
+```
+
+
+
+```{r, fig.height = 5, fig.width = 13}
+
+library(fields)
+library(akima)  # for interpolation
+library(MBA)
+library(maps)
+
+
+# Confirm no missing values remain
+if (anyNA(lithology_new)) {
+  stop("There are still missing values in the data!")
+} else {
+  print("All missing values have been successfully removed.")
+}
+
+
+# Variables for contour plotting
+variables <- c("Thickness", "Surf_Elevation", "A_B_Elevation")
+par(mfrow = c(1, 3))
+
+# Loop over each variable to create an interpolated contour plot
+for (var in variables) {
+  # Interpolate using mba.surf
+  interp_data <- mba.surf(
+    cbind(lithology_new$Easting, lithology_new$Northing, lithology_new[[var]]), 
+    no.X = 100, no.Y = 100, extend = FALSE
+  )$xyz.est
+  
+  # Ensure finite values in interpolation
+  if (any(!is.finite(interp_data$z))) {
+    interp_data$z[!is.finite(interp_data$z)] <- median(interp_data$z, na.rm = TRUE)
+  }
+  
+  # Define zlim for plotting
+  zlim <- range(interp_data$z, finite = TRUE)
+  
+  # Plot the interpolated data
+  image.plot(interp_data, zlim = zlim, main = paste("Image plot of", var), xlab = "Easting", ylab = "Northing")
+  contour(interp_data, add = TRUE)
+}
+print(colnames(lithology_new))
+```
+
+
+
+
+
+(b) Taking `log(Thickness)` as the response and `Surf Elevation` and `A-B Elevation` as covariates, fit a univariate Gaussian spatial model with a nugget effect, using the Mat\'ern covariance functions. 
+You may start with flat priors for the covariate slopes, Inverse Gamma(0.1, 0.1) priors for the spatial and nugget variances, and a Gamma(0.1,0.1) prior for the spatial range parameter. Modify the priors and check for their sensitivity to the analysis. (Hint: You will need `spBayes` for the Mat\'ern model.)
+```{r}
+print(colnames(lithology_new))
+library(spBayes)
+
+# Define priors for the Bayesian model, including both phi.Unif and nu.Unif
+priors <- list(
+  beta.Norm = list(mean = rep(0, 3), var = diag(1e6, 3)),  # Flat priors for regression coefficients
+  tau.sq.IG = c(0.1, 0.1),  # Inverse Gamma prior for nugget variance
+  sigma.sq.IG = c(0.1, 0.1),  # Inverse Gamma prior for spatial variance
+  phi.Ga = c(0.1, 0.1),       # Gamma prior for spatial range parameter
+  phi.Unif = c(0.01, 1.0),    # Uniform prior for spatial decay (phi)
+  nu.Unif = c(0.5, 2.0)       # Uniform prior for smoothness (nu), required by spLM with Matérn covariance
+)
+
+# Prepare the response and spatial coordinates exactly as you specified
+lithology_new$log_Thickness <- log(lithology_new$Thickness)
+coords <- as.matrix(lithology_new[, c("Easting", "Northing")])
+
+# Set starting values and tuning parameters, including nu
+starting <- list("beta" = rep(0, 3), "sigma.sq" = 1, "tau.sq" = 1, "phi" = 0.5, "nu" = 1)
+tuning <- list("phi" = 0.1, "sigma.sq" = 0.1, "tau.sq" = 0.1, "nu" = 0.1)
+
+# Fit the spatial model using spLM with a Matérn covariance function
+model <- spLM(
+  log_Thickness ~ Surf_Elevation + A_B_Elevation,  # Model formula
+  coords = coords,  # Spatial coordinates
+  data = lithology_new,  # Data frame containing the variables
+  starting = starting,
+  tuning = tuning,
+  priors = priors,
+  cov.model = "matern",  # Specify Matérn covariance
+  n.samples = 1000  # Number of MCMC samples
+)
+
+# Summarize model results
+summary(model)
+# Post-processing of model output
+samples <- spRecover(model, start = 500)  # Discard the first 500 samples as burn-in
+summary(samples)
+```
+
+
+- Variogram
+```{r}
+
+
+library(geoR)
+
+# Step 1: Calculate log of Thickness and add it to the dataframe
+lithology_new$log_Thickness <- log(lithology_new$Thickness)
+
+# Step 2: Convert to geoR geodata format with log_Thickness as the data column
+geo_data <- as.geodata(lithology_new, coords.col = c("Easting", "Northing"), data.col = "log_Thickness")
+
+# Step 3: Calculate empirical variogram with max distance as half of the max distance between points
+spatial_coords <- as.matrix(lithology_new[, c("Easting", "Northing")])
+emp_variogram <- variog(geo_data, max.dist = max(dist(spatial_coords)) / 2)
+
+# Step 4: Plot the empirical variogram
+plot(emp_variogram, main = "Empirical Variogram")
+
+# Step 5: Set conservative initial guesses for variogram parameters
+# Using a fraction of the variance for partial sill and nugget
+data_values <- lithology_new$log_Thickness
+total_variance <- var(data_values)
+initial_sill <- total_variance * 0.5 # Partial sill as 50% of total variance
+initial_nugget <- total_variance * 0.5     # Nugget as 20% of total variance
+initial_range <- max(dist(spatial_coords)) / 20  # Initial range as 5% of max distance
+
+# Step 6: Fit the variogram model with conservative initial values
+fit_variogram <- variofit(
+  emp_variogram,
+  cov.model = "exponential",
+  ini.cov.pars = c(initial_sill, initial_range),
+  nugget = initial_nugget,
+  weights = "npairs",
+  control = list(maxit = 500)  # Increase max iterations for stability
+)
+
+# Step 7: Print the fitted model parameters
+print(fit_variogram)
+```
+
+```{r}
+# Step 8: Extract fitted parameters
+nugget <- fit_variogram$nugget
+partial_sill <- fit_variogram$cov.pars[1]     # Partial sill
+total_sill <- nugget + partial_sill           # Total sill
+range <- fit_variogram$cov.pars[2]            # Range
+
+# Display the fitted variogram parameters
+cat("Estimated Nugget:", nugget, "\n")
+cat("Estimated Partial Sill:", partial_sill, "\n")
+cat("Estimated Total Sill:", total_sill, "\n")
+cat("Estimated Range:", range, "\n")
+```
+
+- fit a univariate Gaussian spatial model with a nugget effect, using the Mat'ern covariance functions: 1st try
+```{r}
+# Load the necessary libraries
+library(spBayes)
+library(geoR)
+
+# Prepare the data
+lithology_new$log_Thickness <- log(lithology_new$Thickness)
+coords <- as.matrix(lithology_new[, c("Easting", "Northing")])
+
+# Define priors
+priors <- list(
+  beta.Norm = list(mean = rep(0, 3), var = diag(1e6, 3)), # Flat priors for regression coefficients
+  tau.sq.IG = c(0.1, 0.1),    # Inverse Gamma prior for nugget variance
+  sigma.sq.IG = c(0.1, 0.1),  # Inverse Gamma prior for spatial variance
+  phi.Unif = c(1e-6, 3e6),    # Uniform prior for spatial range parameter to reflect a wide range of distances
+  nu.Unif = c(0.5, 2)         # Uniform prior for smoothness parameter of Matérn
+)
+
+# Starting values and tuning parameters
+starting <- list(
+  beta = rep(0, 3),
+  sigma.sq = 10.6023,     # Partial Sill from variogram
+  tau.sq = 0.4716,        # Nugget from variogram
+  phi = 1 / 501708.7,     # Inverse range as initial value for phi
+  nu = 1                  # Initial smoothness parameter
+)
+
+tuning <- list(
+  beta = 0.01,
+  sigma.sq = 0.1,
+  tau.sq = 0.1,
+  phi = 0.1,
+  nu = 0.1
+)
+
+# Fit the spatial model using spLM with a Matérn covariance function
+model <- spLM(
+  log_Thickness ~ Surf_Elevation + A_B_Elevation,  # Model formula
+  coords = coords,         # Spatial coordinates
+  data = lithology_new,    # Data frame containing the variables
+  starting = starting,
+  tuning = tuning,
+  priors = priors,
+  cov.model = "matern",    # Specify Matérn covariance
+  n.samples = 1000         # Number of MCMC samples
+)
+
+# Summary of the model
+summary(model)
+```
+To check
+```{r, fig.height = 9, fig.width = 9}
+par(mfrow=c(3,2))
+# Load diagnostics library
+library(coda)
+
+# Check trace plots for the parameters
+plot(mcmc(model$p.theta.samples))
+```
+
+```{r}
+# Summary of posterior samples for parameter estimates
+posterior_summary <- summary(mcmc(model$p.theta.samples))
+print(round(posterior_summary$quantiles, 3))
+```
+- To Modify the priors and check for their sensitivity to the analysis: new fit  
+
+```{r}
+priors <- list(
+  beta.Norm = list(mean = rep(0, 3), var = diag(1e6, 3)), # Flat priors for regression coefficients
+  tau.sq.IG = c(2, 0.2),    # Adjusted Inverse Gamma prior for nugget variance
+  sigma.sq.IG = c(2, 0.2),  # Adjusted Inverse Gamma prior for spatial variance
+  phi.Unif = c(1e-6, 1e3),  # Constrained range for spatial decay parameter
+  nu.Unif = c(0.5, 2)       # Uniform prior for smoothness parameter of Matérn
+)
+
+# Starting values for MCMC
+starting <- list(
+  beta = rep(0, 3),
+  sigma.sq = 0.5,        # Adjusted starting value
+  tau.sq = 0.1,          # Adjusted starting value
+  phi = 1 / 5000,        # Adjusted starting range parameter
+  nu = 1                 # Initial smoothness parameter
+)
+
+# Tuning parameters for better acceptance rates
+tuning <- list(
+  beta = 0.01,
+  sigma.sq = 0.05,
+  tau.sq = 0.05,
+  phi = 0.05,
+  nu = 0.05
+)
+
+# Fit the spatial model using spLM with a Matérn covariance function
+model2 <- spLM(
+  log_Thickness ~ Surf_Elevation + A_B_Elevation,
+  coords = coords,
+  data = lithology_new,
+  starting = starting,
+  tuning = tuning,
+  priors = priors,
+  cov.model = "matern",
+  n.samples = 2000  # Increase the number of samples for more stable results
+)
+
+```
+
+
+```{r}
+# Summarize posterior samples for interpretation
+posterior_summary <- summary(mcmc(model2$p.theta.samples))$quantiles
+print(round(posterior_summary, 3))
+```
+
+```{r}
+# Extract posterior summaries for both models
+posterior_summary_model <- summary(mcmc(model$p.theta.samples))$quantiles
+posterior_summary_model2 <- summary(mcmc(model2$p.theta.samples))$quantiles
+
+# Round the summaries to 3 decimal places
+posterior_summary_model <- round(posterior_summary_model, 3)
+posterior_summary_model2 <- round(posterior_summary_model2, 3)
+
+# Combine both summaries into a single data frame for easy comparison
+comparison_table <- data.frame(
+  Parameter = rownames(posterior_summary_model),
+  Model1_2.5 = posterior_summary_model[, "2.5%"],
+  Model1_25 = posterior_summary_model[, "25%"],
+  Model1_50 = posterior_summary_model[, "50%"],
+  Model1_75 = posterior_summary_model[, "75%"],
+  Model1_97.5 = posterior_summary_model[, "97.5%"],
+  Model2_2.5 = posterior_summary_model2[, "2.5%"],
+  Model2_25 = posterior_summary_model2[, "25%"],
+  Model2_50 = posterior_summary_model2[, "50%"],
+  Model2_75 = posterior_summary_model2[, "75%"],
+  Model2_97.5 = posterior_summary_model2[, "97.5%"]
+)
+
+# Print the comparison table
+print(comparison_table)
+```
+
+```{r}
+
+comparison_table <- data.frame(
+  Parameter = c("sigma.sq", "tau.sq", "phi", "nu"),
+  New_Model = c("0.200 - 0.611", "0.063 - 0.248", "0.001 - 0.018", "0.581 - 1.897"),
+  Previous_Model = c("0.250 - 11.325", "0.056 - 0.434", "0.000 - 0.015", "0.546 - 1.680"),
+  Improvement = c("Yes, narrower", "Yes, concentrated", "Slight improvement", "More flexible")
+)
+
+# Print the table in a simple format
+print(comparison_table)
+```
+
+
+
+
+(c) Perform Bayesian kriging on a suitable grid of values and create image plots of the posterior mean residual surfaces for the spatial effects.
+```{r}
+
+# Define the grid for kriging
+n.grid <- 50
+x.range <- range(lithology_new$Easting)
+y.range <- range(lithology_new$Northing)
+grid <- expand.grid(
+  Easting = seq(x.range[1], x.range[2], length.out = n.grid),
+  Northing = seq(y.range[1], y.range[2], length.out = n.grid)
+)
+
+# Sort grid to ensure increasing x and y values
+grid <- grid[order(grid$Easting, grid$Northing), ]
+
+# Prepare the covariate matrix for prediction (same structure as model covariates)
+pred.covars <- cbind(1, grid$Easting, grid$Northing)
+
+# Perform Bayesian kriging using the spPredict function from spBayes
+kriging_output <- spPredict(
+  model2,                     # Using the updated model
+  pred.coords = as.matrix(grid),  # Prediction coordinates (grid points)
+  pred.covars = pred.covars,     # Prediction covariates
+  start = 500,                 # Discarding the burn-in samples
+  verbose = FALSE
+)
+
+# Extract the posterior mean residual surfaces
+kriging_mean <- apply(kriging_output$p.y.predictive.samples, 1, mean)
+
+# Add predicted values to the grid for plotting
+kriging_grid <- cbind(grid, Predicted_Mean = kriging_mean)
+
+# Plot the posterior mean residual surfaces
+library(fields)
+library(akima)
+
+par(mfrow = c(1, 1))
+x <- sort(unique(grid$Easting))
+y <- sort(unique(grid$Northing))
+z <- matrix(kriging_mean, nrow = length(x), ncol = length(y))
+
+image.plot(x, y, z, main = "Posterior Mean Residual Surface for Spatial Effects",
+           xlab = "Easting", ylab = "Northing")
+contour(x, y, z, add = TRUE)
+
+```
