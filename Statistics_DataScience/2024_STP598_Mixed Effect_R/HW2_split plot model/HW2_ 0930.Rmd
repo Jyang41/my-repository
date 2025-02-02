@@ -1,0 +1,249 @@
+---
+title: "HW2"
+author: "Jiseon Yang"
+date: "2024-10-01"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1.
+
+```{r }
+# Define the matrix
+A <- matrix(c(1, 0, 0, 0,
+              -1, 1, 0, 0,
+              0, -1, 1, 0,
+              0, 0, -1, 1,
+              0, 0, 0, -1), 
+            nrow = 5, ncol = 4, byrow = TRUE)
+
+library(pracma)
+
+# Gram-Schmidt process
+Q <- gramSchmidt(A)$Q
+
+# Output the orthonormal matrix
+gramSchmidt(Q)
+```
+
+## 2 (a) Profile plot 
+•	WI (Weights Increasing): The trend appears to be mostly linear but could have a slight quadratic component due to the accelerating increase in later weeks.
+•	RI (Repetitions Increasing): A quadratic trend is likely, with an increase followed by a leveling off of strength.
+•	CONT (Control): A flat or slightly negative linear trend, indicating no major polynomial trend.
+
+```{r }
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+#install.packages("tidyr")
+library(tidyr)
+library(reshape2)
+
+# Load the data
+strength_wide <- read.table("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW2/strength.dat", header = FALSE)
+
+# Add proper column names for better understanding
+names(strength_wide) <- c("ID", "Group", "Week1", "Week2", "Week3", "Week4", "Week5", "Week6", "Week7")
+
+# Convert data from wide format to long format
+strength_long <- melt(strength_wide, id.vars = c("ID", "Group"),
+                      variable.name = "Week", value.name = "Strength")
+
+# Convert 'Week' to a numeric variable (removing 'Week' prefix)
+strength_long$Week <- as.numeric(gsub("Week", "", strength_long$Week))
+
+length(unique(strength_long$ID))
+table(strength_wide$Group)
+
+
+# Generate the plot
+strength_long %>% 
+  group_by(Group, Week) %>% 
+  summarise(Strength = mean(Strength, na.rm = TRUE), .groups = "drop") %>% 
+  ggplot(aes(x = Week, y = Strength, color = as.factor(Group))) + 
+  geom_point() +
+  geom_line() +
+  ylab("Strength Means") + 
+  scale_color_discrete(name = "Group") +
+  ggtitle("Profile Plot of Strength Over Time by Treatment Group") +
+  xlab("Week")
+
+```
+## 2 (c) Fit the Split-Plot Model: ANOVA approach
+-. use aov() function
+-. best suit for banlanced model (not for unbalanced model)
+-. contrast function 
+
+1) aov.fit1: Split-plot model with a random effect for ID handled by the Error(IDf) term. Best suited for balanced designs.
+2) aov.fit2: ANOVA model treating ID as a fixed effect. Overfits when there are many participants and treats individual variability as a fixed difference rather than random variability.
+3) lm.fit3: Similar to aov.fit1, it treats ID as a fixed effect using a standard linear regression model. Again, this leads to overfitting when there are many participants.
+4) lmer.fit4: Mixed-effects model that treats ID as a random effect. This is the best choice for repeated measures data or hierarchical data, and it can handle unbalanced data. It provides a flexible structure to account for both fixed and random effects, and it generalizes better than models treating ID as a fixed effect.
+```{r }
+
+# Load the data
+strength_wide <- read.table("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW2/strength.dat", header = FALSE)
+
+# Add proper column names for better understanding
+names(strength_wide) <- c("ID", "Group", "Week1", "Week2", "Week3", "Week4", "Week5", "Week6", "Week7")
+
+# Provide a Unique ID for each subject by combining ID and Group so that the same ID# is not considered to be the same subject accross different groups
+strength_wide$UniqueID <- interaction(strength_wide$ID, strength_wide$Group)
+
+# Convert data from wide format to long format (reshaping only once)
+strength_long <- melt(strength_wide, id.vars = c("UniqueID", "Group"),
+                      variable.name = "Week", value.name = "Strength")
+
+# Remove 'Week' prefix and convert Week to a numeric variable
+strength_long$Week <- as.numeric(gsub("Week", "", strength_long$Week))
+
+# Convert Week, UniqueID, and Group to factors
+strength_long$Weekf <- as.factor(strength_long$Week)
+strength_long$UniqueIDf <- as.factor(strength_long$UniqueID)
+strength_long$Groupf <- as.factor(strength_long$Group)
+
+# Contrast
+levels(strength_long$Weekf) # Check levels of Weekf
+contrasts(strength_long$Weekf) <- contr.poly(7)
+
+# 1) aov.fit1: Split-plot model with a random effect for ID handled by the Error(IDf) term. Best suited for balanced designs.
+# aov.fit1 <- aov(Strength ~ Weekf + Groupf + Weekf*Group + Error(UniqueIDf), data = strength_long)
+# aov.fit1
+# summary(aov.fit1)
+
+# 2) aov.fit2: ANOVA model treating ID as a fixed effect. 
+aov.fit2 <- aov(Strength ~ Weekf + Groupf + Weekf*Group + UniqueIDf, data = strength_long)
+summary(aov.fit2)
+
+# 3) lm.fit3: Similar to aov.fit1, it treats ID as a fixed effect using a standard linear regression model. 
+lm.fit3 <- lm(Strength ~ Weekf + Groupf + Weekf*Groupf + UniqueIDf, data = strength_long)
+summary(lm.fit3)
+
+# ANOVA
+#anova(aov.fit1)
+anova(aov.fit2)
+anova(lm.fit3)
+anova(lm.fit3)
+
+
+```
+
+
+
+## R Markdown
+
+
+
+```{r }
+
+```
+
+## 2(a). Using New data table
+
+```{r }
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+#install.packages("tidyr")
+library(tidyr)
+library(reshape2)
+
+# Load the data
+strength_wide1 <- read.csv("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW2/strength.csv", header = FALSE)
+
+str(strength_wide)
+
+# Add proper column names for better understanding
+names(strength_wide1) <- c("ID", "Group", "Week1", "Week2", "Week3", "Week4", "Week5", "Week6", "Week7")
+
+head(strength_wide1)
+
+# Convert data from wide format to long format
+strength_long1 <- melt(strength_wide1, id.vars = c("ID", "Group"),
+                      variable.name = "Week", value.name = "Strength")
+
+# Convert 'Week' to a numeric variable (removing 'Week' prefix)
+strength_long1$Week <- as.numeric(gsub("Week", "", strength_long1$Week))
+
+length(unique(strength_long1$ID))
+table(strength_wide1$Group)
+
+
+# Generate the plot
+strength_long1 %>% 
+  group_by(Group, Week) %>% 
+  summarise(Strength = mean(Strength, na.rm = TRUE), .groups = "drop") %>% 
+  ggplot(aes(x = Week, y = Strength, color = as.factor(Group))) + 
+  geom_point() +
+  geom_line() +
+  ylab("Strength Means") + 
+  scale_color_discrete(name = "Group") +
+  ggtitle("Profile Plot of Strength Over Time by Treatment Group-1") +
+  xlab("Week")
+
+
+```
+
+## 2(c) Using New data table
+
+```{r }
+
+# Convert data from wide format to long format (reshaping only once)
+strength_long1 <- melt(strength_wide1, id.vars = c("ID", "Group"),
+                      variable.name = "Week", value.name = "Strength")
+
+# Remove 'Week' prefix and convert Week to a numeric variable
+strength_long1$Week <- as.numeric(gsub("Week", "", strength_long1$Week))
+
+# Convert Week, ID, and Group to factors
+strength_long1$Weekf <- as.factor(strength_long1$Week)
+strength_long1$IDf <- as.factor(strength_long1$ID)
+strength_long1$Groupf <- as.factor(strength_long1$Group)
+
+# Contrast
+levels(strength_long1$Weekf) # Check levels of Weekf
+contrasts(strength_long1$Weekf) <- contr.poly(7)
+contrasts(strength_long1$Weekf)
+
+# 1) aov.fit5: Split-plot model with a random effect for ID handled by the Error(IDf) term. Best suited for balanced designs.
+aov.fit5 <- aov(Strength ~ Weekf + Groupf + Weekf*Group + Error(IDf), data = strength_long1)
+summary(aov.fit5)
+
+# 2) aov.fit6: ANOVA model treating ID as a fixed effect. 
+aov.fit6 <- aov(Strength ~ Weekf + Groupf + Weekf*Group + IDf, data = strength_long1)
+summary(aov.fit6)
+
+# 3) lm.fit7: Similar to aov.fit1, it treats ID as a fixed effect using a standard linear regression model. 
+lm.fit7 <- lm(Strength ~ Weekf + Groupf + Weekf*Groupf + IDf, data = strength_long1)
+summary(lm.fit7)
+
+# 4) lmer.fit8: Mixed-effects model that treats ID as a random effect. Best recommended for repeated measures data. Also, it can handle unbalanced data. It provides a flexible structure to account for both fixed and random effects, and it generalizes better than models treating ID as a fixed effect.
+# lmer.fit8 <- lmer(Strength ~ Weekf + Group + Weekf*Group + (1 | IDf), data = strength_long1)
+# summary(lmer.fit8)
+
+# ANOVA
+#anova(aov.fit5)
+anova(aov.fit6)
+anova(lm.fit7)
+# anova(lmer.fit8)
+
+```
+
+## 3. Extra credit 
+
+```{r }
+
+summary(lm.fit7)$coefficients
+
+
+```
+
+
+```{r }
+
+
+
+```
+

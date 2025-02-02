@@ -1,0 +1,157 @@
+---
+title: "Longitudinal_HW1_JYang"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+date: "2024-09-18"
+---
+
+
+
+
+# Load the data
+```{r }
+fev_data <- read.table("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW1/fevclongdat.txt", header = TRUE)
+```
+
+
+# Question 3.
+Obtain a scatter plot (spaghetti plot) of subject trajectories across time. Based on this plot, does it seem reasonable to assume that there is not interaction between the subject factor and time? Why is this assumption important for testing the null hypothesis of no time effect?
+```{r }
+num_patients <- length(unique(fev_data$patient))  # Number of unique patients
+col <- rainbow(num_patients)  # Assign unique colors to each patient
+
+layout(matrix(c(1, 2), ncol = 2), widths = c(3, 1)) 
+
+interaction.plot(fev_data$hour, as.factor(fev_data$patient), fev_data$fev1,
+                 xlab = "Hour",
+                 ylab = "FEV1",
+                 lty = 1,  # Solid lines
+                 legend = FALSE,  # Suppress the legend
+                 type = "b",  # Plot both lines and points
+                 col = col,  # Use rainbow colors for each patient
+                 pch = 1)  # Plotting symbol for all patients (can be customized)
+title("FEV1 Spaghetti Plot")
+
+# Add a legend with patient numbers in 2nd area
+plot.new()
+legend("right", legend = unique(fev_data$patient), col = col, pch = 1, 
+       title = "Patients", cex = 0.5, ncol = 2) 
+```
+
+# Question 4. 
+Use mean squares from the ANOVA table to obtain estimates of σb^2 and σε^2.
+```{r cars}
+library(lme4)
+fit <- lm(fev1 ~ as.factor(patient), data = fev_data)
+fit
+anova(fit)
+MSB <- 4.2816
+MSE <- 0.1554
+nj <- length(unique(fev_data$hour))
+sigma_b_sq <- (MSB-MSE)/nj
+sigma_e_sq <- MSE
+cat("** sigma_b_sq = (MSB - MSE) /nj = (", MSB, "-", MSE, ")/", nj, "=", sigma_b_sq, "\n")
+cat("** sigma_e_sq = MSE =", sigma_e_sq, "\n")
+```
+
+## Question 5.
+Obtain a two-sided 95% confidence interval for σb2. Hint: Use the Satterthwaite approximation.
+
+Reference: ALSM chapter 25.The Satterthwaite procedure (Ref. 25.3) is a general procedure for constructing approximate confidence intervals for linear combinations of expected mean squares. 
+
+** sigma_b_sq = (MSB - MSE) /nj  
+** sigma_e_sq = MSE
+** sigma_u_sq = (1/n)MSB + (-1/n)MSE
+Confidence interval for sigma_u_sq: linear combination of MS
+** L_hat = sigma^2_u
+** df = {c1(MS.1)+ ....+ ch(MS.h)}^2 / [ {c1(MS.1)^2 /df1} + ...+{c1(MS.h)^2 /dfh}] 
+95% CI, alpha=0.05
+
+```{r }
+alpha <- 0.05
+r <- length(unique(fev_data$patient)) # num_patients
+nj <- 8 # 8 repeat measure, 8 time points
+df.B <- (r-1)
+df.W <- (r*(nj-1))
+s_u_sq <- (1/nj)*MSB + (-1/nj)*MSE
+
+# df Satterthwaite approxomation 
+nominator <- (nj * s_u_sq)^2
+denominator <- MSB^2/(r-1) + MSE^2/(r*(nj-1))
+cat("nominator = (nj * s_u_sq)^2 = 8 x 0.515775", "\n")
+cat("denominator = MSB^2/(r-1) + MSE^2/(r*(nj-1)) = (4.2816)^2/(24-1) + (0.15548)^2/(24(8-1))", "\n")
+
+df.approx <- nominator / denominator
+cat("s_u_sq =", s_u_sq, "\n") 
+cat("df.approx = ", df.approx, "\n")
+
+# Calculate chi-square critical values
+chi_sq_upper <- qchisq(alpha/2, df.approx, lower.tail = TRUE)
+chi_sq_lower <- qchisq(1 - alpha/2, df.approx, lower.tail = TRUE)
+cat("chi_sq_upper =", chi_sq_upper, "\n") 
+cat("chi_sq_lower =", chi_sq_lower, "\n") 
+
+# Calculate the lower and upper bounds of the confidence interval
+lower_bound <- (df.approx * s_u_sq) / chi_sq_lower
+upper_bound <- (df.approx * s_u_sq) / chi_sq_upper
+cat("95% Confidence Interval for sigma_b^2: [", lower_bound, ",", upper_bound, "]\n")
+```
+## Question 6. 
+Obtain the EBLUP of bi for patient with ID=223. Explain the meaning of the EBLUP.
+```{r }
+# Filter the data for patient ID 223
+patient_223_data <- subset(fev_data, patient == 223)
+
+# Calculate the mean response for patient 223 (Y_bar_223)
+Y_bar_223 <- mean(patient_223_data$fev1)
+cat("Y_bar_223 =", Y_bar_223, "\n")
+
+# Calculate the overall mean response (mu_hat)
+mu_hat <- mean(fev_data$fev1)
+cat("mu_hat =", mu_hat, "\n")
+
+# Calculate the EBLUP for patient 223
+n_223 <- nrow(patient_223_data) #repeated measures for patient 223 (n_i)
+cat("n_223 =", n_223,"\n")
+sigma_b_sq <- 0.515775  
+sigma_e_sq <- 0.1554 
+EBLUP_223 <- (sigma_b_sq) / (sigma_b_sq + sigma_e_sq/n_223) * (Y_bar_223 - mu_hat)
+cat("EBLUP for patient 223 =", "\n", "((sigma_b_sq) / (sigma_b_sq + sigma_e_sq/n_223)) * (Y_bar_223 - mu_hat)=", EBLUP_223,"\n")
+
+```
+
+## Question 7.	
+Use the estimates of the variance components to obtain an estimate of var(Yij ).
+** Var(YiJ) = sigma_b_sq + sigma_e_sq
+```{r}
+Var_YiJ <- sigma_b_sq + sigma_e_sq
+cat("Var(YiJ) = (sigma_b_sq) + (sigma_e_sq) =", Var_YiJ, "\n")
+```
+
+## Question 8.
+Find an estimate of the covariance of Yij and Yij′ , j ̸= j′, under the model given in expression (1).
+** Cov(yiJ, yij') = sigma_b_sq = 0.515775 
+```{r}
+cat("Cov(yiJ, yij') = sigma_b_sq =", sigma_b_sq, "\n")
+```
+
+
+
+## Question 9.	
+Let Yi be a random vector for the eight measurements taken on patient i. Write down the covariance matrix for Yi based on the model in expression (1).
+```{r}
+sigma_b_sq <- 0.515775  
+sigma_e_sq <- 0.1554 
+
+# Covariance matrix for 1 patient (8 repeated measures)
+n_measures <- 8
+cov_matrix <- matrix(sigma_b_sq, nrow = n_measures, ncol = n_measures)  # Covariance between measures
+diag(cov_matrix) <- sigma_b_sq + sigma_e_sq  # Diagonal elements are variances
+
+
+# Output the covariance matrix
+cov_matrix
+```
+

@@ -1,0 +1,761 @@
+---
+title: "Final_Longitudinal_Short"
+author: "Jiseon Yang"
+date: "2024-11-23"
+output: word_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+options(width = 180)  # Set the desired width (e.g., 180 characters)
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tibble.print_max = 300, tibble.print_min = 300) # Adjust numbers as needed
+
+```
+
+
+### New Data
+```{r }
+# Load necessary libraries
+library(tidyr)
+library(dplyr)
+library(tidyverse)
+library(reshape2)
+
+# Load data: ISS_CFU_size_new.csv
+ISS_CFU_size_new <- read.csv("C:/Users/jyang/ASU Dropbox/Jiseon Yang/2 PROJJECT/2019_NASA CoEvolve/10 Micro17-Ground investigation/ISS_CFU_size_new.csv")
+
+# Reshape the data into long format
+data_long <- ISS_CFU_size_new %>%
+  pivot_longer(
+    cols = c("Ral_L", "Ral_s", "Sph_L", "Sph_s"),
+    names_to = c("Species", "Size"),
+    names_sep = "_",
+    values_to = "CFU"
+  )
+
+# Column type
+data_long <- data_long %>%
+  mutate(
+    Days = as.numeric(Days),
+    Daysf = as.factor(Days),
+    ID = as.factor(ID),
+    trt = as.factor(trt) # 'trt' column already in your data
+  )
+# Log10_CFU
+data_long$log_CFU <- log10(data_long$CFU)
+# View the reshaped data
+head(data_long)
+
+# check NA
+cat("\n NA = ",sum(is.na(data_long)))
+cat("\n Zero CFU = ", sum(data_long$CFU == 0, na.rm = TRUE))
+data_long <- na.omit(data_long)
+cat("\n NA = ",sum(is.na(data_long)))
+
+
+# Aggregate CFU for each species (L + S)
+species_totals <- data_long %>%
+  group_by(ID, Days, Daysf, trt, Species) %>%
+  summarize(Species_CFU = sum(CFU, na.rm = TRUE))
+
+# Log10_Species_CFU
+species_totals$log_Species_CFU <- log10(species_totals$Species_CFU)
+head(species_totals)
+
+cat("\n NA = ",sum(is.na(species_totals)))
+cat("\n Zero CFU = ", sum(species_totals$Species_CFU == 0, na.rm = TRUE))
+
+```
+
+
+
+# spaghetti plot and profile plot 
+```{r}
+
+library(ggplot2)
+
+# Create spaghetti plot with modified scales
+ggplot(data = species_totals, aes(x = Days, y = log_Species_CFU, color = Species, group = interaction(ID, Species))) +
+  geom_line(alpha = 0.7) +  # Lines connecting data points for each individual
+  geom_point(alpha = 0.6, size = 1.5) + # Points for observed data
+  facet_wrap(~ trt, ncol = 1, scales = "free_y") + # Separate panels for each treatment group
+  labs(title = "A. Individual Spaghetti Plots of Log Species CFU Over Days",
+       x = "Days",
+       y = "Log Species CFU",
+       color = "Species") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  scale_color_manual(values = c("Ral" = "blue", "Sph" = "darkorange")) + # Customize colors for species
+  scale_y_continuous(limits = c(6.5, 9.5), breaks = seq(6.5, 9.5, 0.5)) + # Set y-axis scale
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 4)) # Set x-axis scale with interval 7
+
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(species_totals, aes(x = Days, y = log_Species_CFU, color = trt, linetype = Species)) +
+  geom_line(stat = "summary", fun = mean) +
+  labs(title = "B. Growth Patterns Over Time", y = "Species population (log-CFU)", x = "Days") +
+  theme(legend.position = "bottom") +
+  #scale_y_continuous(limits = c(6.5, 9.5), breaks = seq(6.5, 9.5)) + # Set y-axis scale
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 10)) # Set x-axis scale with interval 7
+
+```
+
+
+## Research Question 1:
+Do treatment conditions (LS vs. 1G) significantly alter the population dynamics of Ralstonia (Ral) and Sphingomonas (Sph) over time?
+### log_Species_CFU ∼ Days * trt * Species +( 1∣ID)
+#### Linear mixed model fit by REML
+```{r}
+# Linear mixed model fit by REML
+
+library(lme4)
+
+library(glmmTMB)
+
+# Using lmer (random effects)
+model_mixed <- lmer(log_Species_CFU ~ Days * trt * Species + (1 | ID), data = species_totals, REML = TRUE)
+summary(model_mixed)
+cat("\n")
+
+
+library(lmerTest)
+library(car)
+
+
+anova(model_mixed, type = "III")
+cat("\n *AIC(model_mixed) = ",AIC(model_mixed)) #  1487.367
+
+```
+
+
+```{r}
+# Using gls (with AR(1) correlation)
+library(nlme)
+model_ar1 <- gls(
+  log_Species_CFU ~ Days * trt * Species,
+  correlation = corAR1(form = ~ 1 | ID),
+  data = species_totals,
+  method = "REML"
+)
+summary(model_ar1)
+anova(model_ar1)
+cat("\n *AIC(model_ar1) = ",AIC(model_ar1)) #  1152.575
+AIC(model_mixed, model_ar1)
+
+
+# Diagnostic checks
+library(performance)
+
+#check_model(model1_AR1)
+check_model(model_ar1)
+
+```
+
+
+#Research Question 2:
+What is the best-fit temporal autocorrelation structure?
+
+### Days_scaled
+```{r}
+# Days_scaled
+species_totals$Days_log <- log(species_totals$Days+1) # natural log
+head(species_totals)
+```
+###(a) Unstructured (UN) Covariance -- fail to run
+This allows each pair of repeated measures to have its own covariance.
+```{r}
+
+any(is.na(species_totals))
+
+#install.packages("nlme")
+library(nlme)
+
+# model_UN <- gls(
+#   log_Species_CFU ~  Days_log:Species+ trt:Species,
+#   data = species_totals,
+#   correlation = corSymm(form = ~ 1 | ID),
+#   method = "REML"
+# )
+# summary(model_UN)
+
+```
+
+###b) Compound Symmetry (CS) Covariance
+Assumes constant variance and equal correlation between all pairs of time points.
+```{r}
+model_CS <- gls(
+  log_Species_CFU ~ Days_log * trt * Species,
+  data = species_totals,
+  correlation = corCompSymm(form = ~ Days_log | ID),
+  method = "REML"
+)
+summary(model_CS)
+
+
+model_cs <- gls(
+  log_Species_CFU ~ Days * trt * Species,
+  data = species_totals,
+  correlation = corCompSymm(form = ~ Days | ID),
+  method = "REML"
+)
+summary(model_cs)
+
+# Diagnostic checks
+library(performance)
+check_model(model_CS)
+check_model(model_cs)
+```
+
+###(c) Autoregressive (AR(1)) Covariance
+Assumes that correlations decay exponentially with increasing time lag.
+The correlation structure is applied within each group identified by ID.
+The time points for correlation decay are assumed to be equally spaced and do not require an explicit time variable.
+```{r}
+# 1.	How do species, treatment, and time independently and interactively affect CFU counts? Are there specific combinations of time, species, and treatment that show unique trends? (The most comprehensive model for evaluating time, treatment, and species effects, along with all possible interactions.) {log_Species_CFU ~ trt * Species * Daysf} --------Not working Singular
+model1_AR1 <- gls(
+  log_Species_CFU ~ trt * Species * Days_log, #{Daysf:Species:trt} -- dont work
+  data = species_totals,
+  correlation = corAR1(form = ~ 1 | ID),
+  method = "REML"
+)
+summary(model1_AR1)
+
+model_ar1 <- gls(
+  log_Species_CFU ~ trt * Species * Days, #{Daysf:Species:trt} -- dont work
+  data = species_totals,
+  correlation = corAR1(form = ~ 1 | ID),
+  method = "REML"
+)
+summary(model_ar1)
+
+anova(model1_AR1,model_ar1)
+
+# Diagnostic checks
+library(performance)
+check_model(model1_AR1)
+check_model(model_ar1)
+
+```
+
+###(d) Toeplitz (TOEP) Covariance
+Allows correlations to vary with time lag but remains constant for observations at the same lag.
+```{r fig.height=8, fig.width=8 }
+library(glmmTMB)
+
+
+model1_toep <- glmmTMB(
+  log_Species_CFU ~ Days_log*Species*trt + toep(Days_log + 0 | ID),
+  data = species_totals,
+  #dispformula = ~ 0, # Assume Residual variance is the same across trt groups.
+  #dispformula = ~ species, # Residual variance is allowed to differ by species.
+  #Without dispformula # Residual variance is estimated freely for each group.
+  REML = TRUE)
+
+summary(model1_toep) # 1487.2
+
+############# select model2_toep
+model2_toep <- glmmTMB(
+  log_Species_CFU ~ Days_log*Species*trt + toep(Days_log + 0 | ID),
+  data = species_totals,
+  #dispformula = ~ 0, # Assume Residual variance is the same across trt groups.
+  dispformula = ~ Species, # Residual variance is allowed to differ by species.
+  #none  # Residual variance is estimated freely for each group.
+  REML = TRUE)
+
+summary(model2_toep) # 1463.8
+
+# Diagnostic checks
+library(performance)
+check_model(model1_toep)
+check_model(model2_toep)
+
+```
+
+### (e) sum
+```{r}
+# Call AIC, BIC, and logLik for each model manually
+models <- list(
+  CS = model_CS,
+  cs = model_cs,
+  AR1 = model1_AR1,
+  ar1 = model_ar1,
+  TOEP = model1_toep,
+  TOEP_disp_species = model2_toep
+  #TOEP_scaled = model_toep_scaled
+)
+
+# Create an empty data frame to store the results
+results <- data.frame(
+  Model = character(),
+  AIC = numeric(),
+  BIC = numeric(),
+  logLik = numeric(),
+  stringsAsFactors = FALSE
+)
+
+# Loop through each model and extract the metrics
+for (model_name in names(models)) {
+  model <- models[[model_name]]
+  
+  if (!is.null(model)) {
+    results <- rbind(results, data.frame(
+      Model = model_name,
+      AIC = AIC(model),
+      BIC = BIC(model),
+      logLik = logLik(model)
+    ))
+  }
+}
+
+# Display the results
+print(results)
+```
+\n CONCLUSION:
+\n The AR(1) model, with its lowest AIC and BIC values, highest log-likelihood, and parsimonious structure, provides the best fit for modeling the CFU dynamics, effectively capturing the exponential decay in correlations over time while maintaining computational efficiency.
+
+
+#Research Question 3:
+What are the differences in growth trajectories between Ralstonia and Sphingomonas under LS and 1G conditions over time?
+
+#### LMM_poly
+```{r}
+model_species_REML_poly2 <- lmer(
+  log_Species_CFU ~ poly(Days, 2) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly3 <- lmer(
+  log_Species_CFU ~ poly(Days, 3) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly4 <- lmer(
+  log_Species_CFU ~ poly(Days, 4) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly5 <- lmer(
+  log_Species_CFU ~ poly(Days, 5) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly6 <- lmer(
+  log_Species_CFU ~ poly(Days, 6) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly8 <- lmer(
+  log_Species_CFU ~ poly(Days, 8) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+model_species_REML_poly10 <- lmer(
+  log_Species_CFU ~ poly(Days, 10) * trt * Species + (1 | ID),
+  data = species_totals, REML = TRUE)
+
+summary(model_species_REML_poly10)
+anova(model_species_REML_poly10, type = "III")
+
+# compare
+anova(model_mixed, model_species_REML_poly2) # p < 2.2e-16
+anova(model_species_REML_poly5, model_species_REML_poly6) # p < 2.2e-16
+anova(model_species_REML_poly6, model_species_REML_poly10) # p < 2.2e-16
+
+cat("\n *AIC(model_species_REML) = ",AIC(model_mixed)) # 1487.367
+cat("\n *AIC(model_species_REML_poly2) = ",AIC(model_species_REML_poly2))# 1350.321
+cat("\n *AIC(model_species_REML_poly3) = ",AIC(model_species_REML_poly3))# 1229.857
+cat("\n *AIC(model_species_REML_poly4) = ",AIC(model_species_REML_poly4))# 1032.717
+cat("\n *AIC(model_species_REML_poly5) = ",AIC(model_species_REML_poly5))# 911.3526
+cat("\n *AIC(model_species_REML_poly6) = ",AIC(model_species_REML_poly6))# 783.9919
+cat("\n *AIC(model_species_REML_poly8) = ",AIC(model_species_REML_poly8))# 502.4344
+cat("\n *AIC(model_species_REML_poly10) = ",AIC(model_species_REML_poly10)) #274.3817
+```
+
+#### ar1_poly_nested
+
+## 1. Polynomial Terms for AR(1) Structure with Nested Random Effects (Days_log)
+```{r}
+# model_species_REML_poly10
+
+# LMM_poly_ML
+LMM_poly_ML <- lmer(
+  log_Species_CFU ~ poly (Days, 10) * trt * Species + (1 | ID),
+  data = species_totals,
+  REML = FALSE
+)
+
+
+############ AR(1)_poly_nested (Days-log)
+
+
+# Add log-polynomial terms to species_totals
+species_totals <- species_totals %>%
+  mutate(
+    Days_log_sq = Days_log^2,
+    Days_log_cub = Days_log^3,
+    Days_log_4th = Days_log^4,
+    Days_log_5th = Days_log^5,
+    Days_log_6th = Days_log^6,
+    Days_log_7th = Days_log^7,
+    Days_log_8th = Days_log^8,
+    Days_log_9th = Days_log^9,
+    Days_log_10th = Days_log^10
+  )
+
+
+#log-polynomial ar1_poly_nested
+ar1_poly_nested <- gls(log_Species_CFU ~ 
+                     (Days_log + Days_log_sq + Days_log_cub + Days_log_4th + Days_log_5th + Days_log_6th + Days_log_7th + Days_log_8th + Days_log_9th + Days_log_10th) : trt : Species,
+                 data = species_totals, 
+                 correlation = corAR1(form = ~ 1 | ID), 
+                 method = "REML")
+summary(ar1_poly_nested)
+
+library(car)
+
+# Type III ANOVA to test interactions
+anova_results <- Anova(ar1_poly_nested, type = "III")
+print(anova_results)
+
+
+#log-polynomial ar1_poly_nested
+ar1_poly_nested2 <- gls(log_Species_CFU ~ 
+                     (Days_log + Days_log_sq + Days_log_cub + Days_log_4th + Days_log_5th + Days_log_6th + Days_log_7th + Days_log_8th + Days_log_9th + Days_log_10th) : Species : trt + trt:Species + trt + Species,
+                 data = species_totals, 
+                 correlation = corAR1(form = ~ 1 | ID), 
+                 method = "REML")
+summary(ar1_poly_nested2)
+print(Anova(ar1_poly_nested2, type = "III"))
+
+
+##################### Visualization new_data$predicted &2
+# Visualization
+library(ggplot2)
+
+
+# Generate new data for prediction
+new_data <- expand.grid(
+  Days = seq(min(species_totals$Days), max(species_totals$Days), length.out = 100),
+  trt = unique(species_totals$trt),
+  Species = unique(species_totals$Species)
+)
+
+# Add transformed Days (log) and polynomial terms to the new data
+new_data <- new_data %>%
+  mutate(
+    Days_log = log(Days),
+    Days_log_sq = Days_log^2,
+    Days_log_cub = Days_log^3,
+    Days_log_4th = Days_log^4,
+    Days_log_5th = Days_log^5,
+    Days_log_6th = Days_log^6,
+    Days_log_7th = Days_log^7,
+    Days_log_8th = Days_log^8,
+    Days_log_9th = Days_log^9,
+    Days_log_10th = Days_log^10
+  )
+
+# Predict values using the best model (e.g., ar1_poly_nested or ar1_poly_nested2)
+new_data$predicted <- predict(ar1_poly_nested, newdata = new_data)
+
+# Plot predictions
+ggplot(new_data, aes(x = Days_log, y = predicted, color = Species, linetype = trt)) +
+  geom_line(size = 1) +
+  labs(title = "Predicted CFU Over Time by Treatment and Species",
+       y = "Log CFU",
+       x = "Days_log") +
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 0.2))+
+  theme_minimal() +
+  theme(legend.position = "right")
+
+new_data$predicted2 <- predict(ar1_poly_nested2, newdata = new_data)
+
+# Plot predictions
+ggplot(new_data, aes(x = Days_log, y = predicted2, color = Species, linetype = trt)) +
+  geom_line(size = 1) +
+  labs(title = "Predicted CFU Over Time by Treatment and Species (ar1_poly_nested2)",
+       y = "Log CFU",
+       x = "Days_log") +
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 0.2))+
+  theme_minimal() +
+  theme(legend.position = "right")
+
+
+###################### AR(1)_poly_nested
+
+# Add polynomial terms to species_totals
+species_totals <- species_totals %>%
+  mutate(
+    Days_sq = Days^2,
+    Days_cub = Days^3,
+    Days_4th = Days^4,
+    Days_5th = Days^5,
+    Days_6th = Days^6,
+    Days_7th = Days^7,
+    Days_8th = Days^8,
+    Days_9th = Days^9,
+    Days_10th = Days^10
+  )
+
+#ar1_poly_nested3
+ar1_poly_nested3 <- gls(log_Species_CFU ~ 
+                     (Days + Days_sq + Days_cub + Days_4th + Days_5th + Days_6th + Days_7th + Days_8th + Days_9th + Days_10th):trt:Species,
+                 data = species_totals, 
+                 correlation = corAR1(form = ~ 1 | ID), 
+                 method = "REML")
+summary(ar1_poly_nested3)
+
+
+# Type III ANOVA 
+library(car)
+anova_results <- Anova(ar1_poly_nested3, type = "III")
+print(anova_results)
+
+
+#ar1_poly_nested4
+ar1_poly_nested4 <- gls(log_Species_CFU ~ 
+                     (Days + Days_sq + Days_cub + Days_4th + Days_5th + Days_6th + Days_7th + Days_8th + Days_9th + Days_10th): Species : trt + trt:Species + trt + Species,
+                 data = species_totals, 
+                 correlation = corAR1(form = ~ 1 | ID), 
+                 method = "REML")
+summary(ar1_poly_nested4)
+print(Anova(ar1_poly_nested4, type = "III"))
+
+
+###################### anova and diagnostics
+
+AIC( model_species_REML_poly10, LMM_poly_ML, ar1_poly_nested, ar1_poly_nested2, ar1_poly_nested3, ar1_poly_nested4)
+
+check_model(LMM_poly_ML)
+check_model(ar1_poly_nested)
+check_model(ar1_poly_nested2)
+check_model(ar1_poly_nested3)
+check_model(ar1_poly_nested4)
+
+#####################  Visualization new_data$predicted3 &4
+# Visualization
+library(ggplot2)
+
+
+# Generate new data for prediction
+new_data <- expand.grid(
+  Days = seq(min(species_totals$Days), max(species_totals$Days), length.out = 100),
+  trt = unique(species_totals$trt),
+  Species = unique(species_totals$Species)
+)
+
+# Add transformed Days (log) and polynomial terms to the new data
+new_data <- new_data %>%
+  mutate(
+    Days = Days,
+    Days_sq = Days^2,
+    Days_cub = Days^3,
+    Days_4th = Days^4,
+    Days_5th = Days^5,
+    Days_6th = Days^6,
+    Days_7th = Days^7,
+    Days_8th = Days^8,
+    Days_9th = Days^9,
+    Days_10th = Days^10
+  )
+
+# Predict values using the best model (e.g., ar1_poly_nested or ar1_poly_nested2)
+new_data$predicted3 <- predict(ar1_poly_nested3, newdata = new_data)
+
+# Plot predictions
+ggplot(new_data, aes(x = Days, y = predicted3, color = Species, linetype = trt)) +
+  geom_line(size = 1) +
+  labs(title = "Predicted CFU Over Time by Treatment and Species",
+       y = "Log CFU",
+       x = "Days") +
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 4))+
+  theme_minimal() +
+  theme(legend.position = "right")
+
+new_data$predicted4 <- predict(ar1_poly_nested4, newdata = new_data)
+
+# Plot predictions
+ggplot(new_data, aes(x = Days, y = predicted4, color = Species, linetype = trt)) +
+  geom_line(size = 1) +
+  labs(title = "Predicted CFU Over Time by Treatment and Species",
+       y = "Log CFU",
+       x = "Days") +
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 4))+
+  theme_minimal() +
+  theme(legend.position = "right")
+
+###############
+
+anova(ar1_poly_nested,ar1_poly_nested2, ar1_poly_nested3,ar1_poly_nested4)
+
+VarCorr(LMM_poly_ML)
+```
+```{r}
+summary(ar1_poly_nested2)
+ 
+print(Anova(ar1_poly_nested2, type = "III"))
+
+
+```
+
+
+
+## Introduce breakpoint and analyze data
+### (a) Estimate breakpoint with linear regression.
+```{r}
+
+#install.packages("segmented")
+library(segmented)
+
+################### 1. Linear regression, find breakpoint: 
+###################      :estimated breakpoint is Day 2
+
+## Fit a Piecewise Regression Model
+lm_initial <- lm(log_Species_CFU ~ Days * Species *trt, data = species_totals)
+library(segmented)
+
+# Add a breakpoint to the initial linear model
+segmented_model <- segmented(lm_initial, seg.Z = ~ Days, psi = 8)  # Set an initial guess for the breakpoint (e.g., psi = 8)
+
+summary(segmented_model)
+
+
+# Extract the estimated breakpoint
+breakpoint <- segmented_model$psi[2]
+print(breakpoint)
+
+##Visualization: Plot the Piecewise Regression
+library(ggplot2)
+
+# Create predicted values for visualization
+species_totals$Predicted <- predict(segmented_model)
+
+# Plot the observed data with piecewise regression
+ggplot(species_totals, aes(x = Days, y = log_Species_CFU)) +
+  geom_point(alpha = 0.6) +  # Observed data
+  geom_line(aes(y = Predicted), color = "blue", size = 1) +  # Fitted piecewise regression
+  labs(title = "Piecewise Regression with Breakpoint",
+       x = "Days",
+       y = "Log Species CFU") +
+  scale_x_continuous(breaks = seq(0, max(species_totals$Days), 4))+
+  theme_minimal()
+```
+
+### (b) Modeling with a Manually Set Breakpoint at Day 8.
+```{r}
+########### 2. Manually set breakpoint at day8, then polynormial before and linear after.
+
+# Define a custom variable for days before and after the breakpoint
+species_totals$Days_poly <- pmin(species_totals$Days, 8)  # Polynomial part (before day 8)
+species_totals$Days_linear <- pmax(species_totals$Days - 8, 0)  # Linear part (after day 8)
+
+
+### poly 5: Fit the combined model
+model_piecewise5 <- lm(log_Species_CFU ~ poly(Days_poly, 5)*trt*Species + Days_linear*trt*Species, data = species_totals)
+summary(model_piecewise5)
+
+
+### poly 3: Fit the combined model
+model_piecewise3 <- lm(log_Species_CFU ~ poly(Days_poly, 3)*trt*Species + Days_linear*trt*Species, data = species_totals)
+summary(model_piecewise3)
+
+
+## visualization : Generate predictions for plotting
+species_totals$Fitted <- predict(model_piecewise5)
+
+# Plot the combined model
+library(ggplot2)
+ggplot(species_totals, aes(x = Days, y = log_Species_CFU)) +
+  geom_point(alpha = 0.6, size = 1.2) +  # Observed data points
+  geom_line(aes(y = Fitted), color = "blue", size = 1.2) +  # Fitted values
+  labs(title = "Piecewise Model: Polynomial Before Day 8 and Linear After",
+       x = "Days",
+       y = "Log Species CFU") +
+  geom_vline(xintercept = 8, linetype = "dashed", color = "red", size = 1) +  # Breakpoint
+  theme_minimal()
+
+
+
+
+###################### Compare:  ar1_poly_nested2,model_piecewise3, model_piecewise5
+# compare poly 5 vs poly3
+AIC(ar1_poly_nested2,segmented_model, model_piecewise3, model_piecewise5) # poly 5 is significantly better
+anova(ar1_poly_nested2,segmented_model, model_piecewise3, model_piecewise5) # the difference between poly-3 and poly-5 is significant
+anova(model_piecewise3, model_piecewise5)
+```
+
+
+
+##result 
+```{r}
+### poly 3: Fit the combined model
+model_piecewise3 <- lm(log_Species_CFU ~ poly(Days_poly, 3)*trt*Species + Days_linear*trt*Species, data = species_totals)
+summary(model_piecewise3)
+
+library(lmerTest)
+library(car)
+anova_results <- Anova(model_piecewise3, type = "III")
+print(anova_results)
+
+
+```
+
+
+
+
+
+```{r fig.height=8, fig.width=10}
+check_model(model_piecewise3)
+check_model(model_piecewise5)
+
+```
+
+
+
+
+## To test a random intercept and random slope model with a breakpoint at day 8 and a polynomial (degree 3) before the breakpoint and linear after,
+```{r fig.height=8, fig.width=10}
+breakpoint <- 8
+species_totals$Days_poly <- ifelse(species_totals$Days <= breakpoint, species_totals$Days, 0)
+species_totals$Days_linear <- ifelse(species_totals$Days > breakpoint, species_totals$Days - breakpoint, 0)
+
+# Fit Random Intercept and Random Slope Model
+library(lme4)
+model_random_intercept <- lmer(
+  log_Species_CFU ~ poly(Days_poly, 3) * trt * Species + Days_linear * trt * Species + (1 | ID),
+  data = species_totals
+)
+summary(model_random_intercept)
+
+#To account for subject-specific growth trends, include random slopes:
+model_random_slope <- lmer(
+  log_Species_CFU ~ poly(Days_poly, 3) * trt * Species + Days_linear * trt * Species + (1 + Days_poly + Days_linear | ID),
+  data = species_totals
+)
+summary(model_random_slope)
+
+# Compare models
+anova(model_random_intercept, model_random_slope)
+AIC(model_random_intercept, model_random_slope)
+BIC(model_random_intercept, model_random_slope)
+summary(model_random_slope)$varcor
+
+
+# Diagnostic
+library(ggplot2)
+plot(residuals(model_random_slope), fitted(model_random_slope))
+check_model(model_random_slope)
+
+```
+
+
+
+
+
+```{r}
+
+
+```
+
+
+

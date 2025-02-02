@@ -1,0 +1,279 @@
+---
+title: "HW5_longitudinal_2"
+author: "Jiseon Yang"
+date: "2024-11-25"
+output: word_document
+---
+
+# Data
+
+```{r cars}
+
+# Load necessary libraries
+library(nlme)
+library(glmmTMB)
+library(reshape2)
+
+# Load the data
+strength_wide1 <- read.csv("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW3/strength.csv", header = FALSE)
+names(strength_wide1) <- c("ID", "Group", "Week1", "Week2", "Week3", "Week4", "Week5", "Week6", "Week7")
+
+# Convert data from wide format to long format
+strength_long1 <- melt(strength_wide1, id.vars = c("ID", "Group"),
+                       variable.name = "Week", value.name = "Strength")
+
+# Convert variables to factors
+strength_long1$Weekf <- as.factor(strength_long1$Week)
+strength_long1$IDf <- as.factor(strength_long1$ID)
+strength_long1$Groupf <- as.factor(strength_long1$Group)
+
+# Check levels to prevent errors
+if (length(levels(strength_long1$Groupf)) < 2) stop("Group must have at least two levels.")
+if (length(levels(strength_long1$Weekf)) < 2) stop("Week must have at least two levels.")
+
+# Convert `Week` to numeric after removing the "Week" prefix
+strength_long1$Week_num <- as.numeric(gsub("Week", "", strength_long1$Weekf))
+
+# Remove rows with missing values
+strength_long1 <- na.omit(strength_long1)
+
+```
+
+# Question 2
+
+## Use REML estimation and fit a linear mixed model for growth curves with random intercept and random linear slope. Include main effect for program, linear time trend, linear time by program interaction, and quadratic time trend as fixed effects.  
+
+```{r}
+# library(nlme)
+# library(glmmTMB)
+# library(reshape2)
+# library(car)  # For Type III tests
+# library(lmerTest)  # Extends lme4 for compatibility with Anova()
+library(lme4)
+
+# Fit the linear mixed model
+fit <- lmer(
+  Strength ~ Groupf + Week_num + I(Week_num^2) + Week_num:Groupf + 
+    (1 + Week_num | IDf),  # Random intercept and slope for each subject
+  # (Week_num + Week_num | IDf) produce the same result
+  data = strength_long1,
+  REML = TRUE
+)
+
+# Model summary
+summary(fit)
+
+# Perform Type III ANOVA
+type3_anova <- anova(fit, type = 3)
+print(type3_anova)
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(strength_long1, aes(x = Week_num, y = Strength, color = Groupf, group = IDf)) +
+  geom_line(alpha = 0.5) +
+  labs(title = "Individual Growth Curves by Group",
+       x = "Week",
+       y = "Strength") +
+  theme_minimal()
+
+
+ggplot(strength_long1, aes(x = Week_num, y = Strength, color = Groupf)) +
+  stat_summary(fun = mean, geom = "line", size = 1) +
+  labs(title = "Group-level Trends",
+       x = "Week",
+       y = "Average Strength") +
+  theme_minimal()
+```
+
+
+
+
+
+# Question 6
+```{r}
+# Extract the random effects variance-covariance matrix D (for intercept and slope)
+D <- matrix(c(9.2181, -0.18 * sqrt(9.2181 * 0.1255), 
+              -0.18 * sqrt(9.2181 * 0.1255), 0.1255), nrow = 2)
+D
+
+# Define Z_i for 7 time points (1 column for intercept, 1 column for slope)
+time_points <- 1:7
+Z_i <- cbind(1, time_points)
+Z_i
+
+# Calculate Zi * D * Zi'
+Zi_D_Zi_t <- Z_i %*% D %*% t(Z_i)
+Zi_D_Zi_t
+
+# Add the residual variance (Ri)
+Ri <- diag(0.6006, nrow = 7, ncol = 7)
+Ri
+
+# covariance matrix Σi(α)
+Sigma_i_alpha <- Zi_D_Zi_t + Ri
+
+# Print 
+Sigma_i_alpha
+```
+
+
+# Question 7
+## 1. Estimating the Model with Random Intercept and Random Slope (using ML)
+```{r}
+# Fit model with random intercept and random slope using ML
+model_random_intercept_slope_ml <- lmer(Strength ~ Groupf + Week_num + I(Week_num^2) + Week_num:Groupf + 
+               (1 + Week_num | IDf), data = strength_long1, REML = FALSE)
+
+# Summary of the model
+summary(model_random_intercept_slope_ml)
+anova(model_random_intercept_slope_ml)
+```
+
+## 2. Estimating the Model with Only Random Intercept (using ML)
+
+```{r}
+# Fit model with random intercept only using ML
+model_random_intercept_ml <- lmer(Strength ~ Groupf + Week_num + I(Week_num^2) + Week_num:Groupf + 
+                (1 | IDf), data = strength_long1, REML = FALSE)
+
+# Summary of the model
+summary(model_random_intercept_ml)
+anova(model_random_intercept_ml)
+```
+
+
+## 3. Compare Models: Random Intercept and Random Slope vs. Random Intercept Only
+```{r}
+# Perform likelihood ratio test
+anova(model_random_intercept_ml, model_random_intercept_slope_ml)
+```
+
+# Question 8
+
+```{r}
+# Refit the random intercept and random slope model using REML
+model_random_intercept_slope_reml <- lmer(Strength ~ Groupf + Week_num + I(Week_num^2) + Week_num:Groupf + 
+            (1 + Week_num | IDf), data = strength_long1, REML = TRUE)
+summary(model_random_intercept_slope_reml)
+anova(model_random_intercept_slope_reml)
+```
+
+
+# Question10-11
+```{r}
+# Fit the nested model without grand mean
+nested_model <- 
+  lmer(Strength ~ -1 + Groupf + Week_num:Groupf + I(Week_num^2):Groupf + 
+                     (Week_num + Week_num | IDf), data = strength_long1, REML = TRUE) 
+# (Week_num + Week_num | IDf) .. same result
+
+summary(nested_model)
+anova(nested_model)
+```
+
+
+# Question 13
+```{r}
+library(lme4)
+
+# Fit the mixed-effects model with random intercept and slope
+model <-
+  lmer(Strength ~ -1 + Groupf + Week_num:Groupf + I(Week_num^2):Groupf +
+                     (1 + Week_num | IDf), data = strength_long1, REML = TRUE) #(Week_num + Week_num | IDf) produce same result
+
+
+# Obtain BLUP estimates for all subjects
+blup_estimates <- ranef(model)$IDf
+
+# Extract BLUP estimates for the first subject in the WI program
+first_WI_subject <- strength_long1[strength_long1$Groupf == "WI", "IDf"][1]
+blup_first_WI <- blup_estimates[first_WI_subject, ]
+print(blup_first_WI)
+
+# get adjusted_intercept and adjusted_slope
+adjusted_intercept <- fixed_intercept_WI + subject_1_blup["(Intercept)"]
+adjusted_slope <- fixed_slope_WI + subject_1_blup["Week_num"]
+print(adjusted_intercept)
+print(adjusted_slope )
+
+# Filter data for the first subject in the WI program
+first_subject_data <- subset(strength_long1, IDf == first_WI_subject)
+
+# Fit an OLS model to the data of the first subject
+ols_model <- lm(Strength ~ Week_num, data = first_subject_data)
+ols_coefficients <- coef(ols_model)# Extract OLS coefficients
+print(ols_coefficients)
+
+# Step 5: Compare the estimates
+cat("\nComparison of BLUP and OLS estimates for WI, Subject 1:\n")
+comparison <- data.frame(
+  Parameter = c("Intercept", "Slope"),
+  BLUP = c(blup_first_WI["(Intercept)"], blup_first_WI["Week_num"]),
+  OLS = c(ols_coefficients[1], ols_coefficients[2])
+)
+print(comparison)
+
+
+```
+
+
+
+```{r}
+library(lme4)
+
+# Fit the mixed-effects model with random intercept and slope
+model <- lmer(Strength ~ -1 + Groupf + Week_num:Groupf + I(Week_num^2):Groupf +
+                (1 + Week_num | IDf), data = strength_long1, REML = TRUE)
+
+# Step 1: Extract fixed effects for the WI group
+fixed_effects <- fixef(model)
+fixed_intercept_WI <- fixed_effects["GroupfWI"]
+fixed_slope_WI <- fixed_effects["GroupfWI:Week_num"]
+
+# Step 2: Obtain BLUP estimates for all subjects
+blup_estimates <- ranef(model)$IDf
+
+# Step 3: Extract BLUP estimates for the first subject in the WI program
+first_WI_subject <- strength_long1[strength_long1$Groupf == "WI", "IDf"][1]
+blup_first_WI <- as.numeric(blup_estimates[first_WI_subject, ])
+names(blup_first_WI) <- colnames(blup_estimates)  # Ensure column names match
+
+cat("\nBLUP estimates for WI, Subject 1:\n")
+print(blup_first_WI)
+
+# Step 4: Calculate Adjusted BLUP Intercept and Slope
+adjusted_intercept <- fixed_intercept_WI + blup_first_WI["(Intercept)"]
+adjusted_slope <- fixed_slope_WI + blup_first_WI["Week_num"]
+cat("\nAdjusted BLUP Intercept (WI, Subject 1):", adjusted_intercept, "\n")
+cat("Adjusted BLUP Slope (WI, Subject 1):", adjusted_slope, "\n")
+
+# Step 5: Fit an OLS model to the data of the first subject
+first_subject_data <- subset(strength_long1, IDf == first_WI_subject)
+ols_model <- lm(Strength ~ Week_num, data = first_subject_data)
+ols_coefficients <- coef(ols_model)
+cat("\nOLS estimates for WI, Subject 1:\n")
+print(ols_coefficients)
+
+# Step 6: Compare the BLUP Adjusted Intercept/Slope and OLS results
+comparison <- data.frame(
+  Parameter = c("Intercept", "Slope"),
+  BLUP_Adjusted = c(adjusted_intercept, adjusted_slope),
+  OLS = c(ols_coefficients[1], ols_coefficients[2])
+)
+cat("\nComparison of Adjusted BLUP and OLS estimates for WI, Subject 1:\n")
+print(comparison)
+
+```
+The BLUP Adjusted Intercept and Slope provide a balanced estimate by combining the subject-specific variability and the population-level fixed effects. The differences arise because the BLUP accounts for both fixed effects and random effects (subject-specific variations), while the OLS is fitted solely to the data of Subject 1. The BLUP incorporates shrinkage towards the population mean, making it more robust in cases with fewer data points for individual subjects.
+
+
+```{r}
+
+```
+
+
+
+

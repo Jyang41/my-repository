@@ -1,0 +1,639 @@
+---
+title: "HW3_1012"
+author: "Jiseon Yang"
+date: "2024-10-13"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+```{r cars}
+
+# Load necessary libraries
+library(nlme)
+library(glmmTMB)
+library(reshape2)
+
+# Load the data
+strength_wide1 <- read.csv("C:/Users/jyang/OneDrive - Arizona State University/10 Classes_OneDrive/2024 8F_STP598_Logitudinal/zz HW/Longitudinal_HW3/strength.csv", header = FALSE)
+names(strength_wide1) <- c("ID", "Group", "Week1", "Week2", "Week3", "Week4", "Week5", "Week6", "Week7")
+
+# Convert data from wide format to long format
+strength_long1 <- melt(strength_wide1, id.vars = c("ID", "Group"),
+                       variable.name = "Week", value.name = "Strength")
+
+# Convert variables to factors
+strength_long1$Weekf <- as.factor(strength_long1$Week)
+strength_long1$IDf <- as.factor(strength_long1$ID)
+strength_long1$Groupf <- as.factor(strength_long1$Group)
+
+# Check levels to prevent errors
+if (length(levels(strength_long1$Groupf)) < 2) stop("Group must have at least two levels.")
+if (length(levels(strength_long1$Weekf)) < 2) stop("Week must have at least two levels.")
+
+# Convert `Week` to numeric after removing the "Week" prefix
+strength_long1$Week_num <- as.numeric(gsub("Week", "", strength_long1$Weekf))
+
+# Remove rows with missing values
+strength_long1 <- na.omit(strength_long1)
+
+```
+
+##  Question1
+
+```{r}
+# Calculate variance (sigma^2) across weeks
+variances <- apply(strength_wide1[, c("Week1", "Week2", "Week3", "Week4")], 2, var)
+sigma_squared <- mean(variances)
+cat("Variance (sigma^2):", sigma_squared, "\n")
+
+# Calculate AR(1) correlation (rho) by averaging correlations between consecutive weeks
+cor_week1_week2 <- cor(strength_wide1$Week1, strength_wide1$Week2)
+cor_week2_week3 <- cor(strength_wide1$Week2, strength_wide1$Week3)
+cor_week3_week4 <- cor(strength_wide1$Week3, strength_wide1$Week4)
+rho <- mean(c(cor_week1_week2, cor_week2_week3, cor_week3_week4))
+cat("AR(1) Correlation (rho):", rho, "\n")
+
+# Calculate Toeplitz covariances (gamma values for lags 1, 2, and 3)
+gamma_1 <- cov(strength_wide1$Week1, strength_wide1$Week2)
+gamma_2 <- cov(strength_wide1$Week1, strength_wide1$Week3)
+gamma_3 <- cov(strength_wide1$Week1, strength_wide1$Week4)
+cat("Toeplitz Covariances (gamma_1, gamma_2, gamma_3):", gamma_1, gamma_2, gamma_3, "\n")
+
+# Construct AR(1) Covariance Matrix for first four weeks
+Sigma_AR1 <- matrix(sigma_squared * rho ^ abs(row(matrix(1:4, 4, 4)) - col(matrix(1:4, 4, 4))), 4, 4)
+cat("AR(1) Covariance Matrix:\n")
+print(Sigma_AR1)
+
+# Construct Toeplitz Covariance Matrix for first four weeks
+Sigma_Toeplitz <- matrix(c(sigma_squared, gamma_1, gamma_2, gamma_3, 
+                           gamma_1, sigma_squared, gamma_1, gamma_2,
+                           gamma_2, gamma_1, sigma_squared, gamma_1,
+                           gamma_3, gamma_2, gamma_1, sigma_squared), 4, 4)
+cat("Toeplitz Covariance Matrix:\n")
+print(Sigma_Toeplitz)
+```
+
+## Question 2:
+(a) Unstructured Covariance Structure (Model 1)
+```{r}
+fit.unstructured_1 <- gls(Strength ~ Group + Weekf + Weekf*Group, 
+                          data = strength_long1, 
+                          correlation = corSymm(form = ~ 1 | IDf), 
+                          weights = varIdent(form = ~ 1 | Weekf), 
+                          method = "REML")  # or "ML"
+summary(fit.unstructured_1)
+# Residual standard error: 2.963126 
+# Degrees of freedom: 399 total; 378 residual
+
+fit.unstructured_2 <- gls(Strength ~  -1 + Weekf:Group, 
+                          data = strength_long1, 
+                          correlation = corSymm(form = ~ 1 | IDf), 
+                          weights = varIdent(form = ~ 1 | Weekf), 
+                          method = "REML")  # or "ML"
+summary(fit.unstructured_2)
+```
+
+(b) Compound Symmetry (CS) Structure (Model 2)
+```{r}
+fit.cs_1 <- gls(Strength ~ Group + Weekf + Weekf*Group, 
+                data = strength_long1, 
+                correlation = corCompSymm(form = ~ 1 | IDf), 
+                method = "REML")
+summary(fit.cs_1)
+# Rho = 0.8891805
+# Residual standard error: 3.286366 
+# Degrees of freedom: 399 total; 378 residual
+
+fit.cs_2 <- gls(Strength ~ -1 + Weekf:Group, 
+                data = strength_long1, 
+                correlation = corCompSymm(form = ~ 1 | IDf), 
+                method = "REML")
+summary(fit.cs_2)
+```
+
+
+(c) AR(1) Structure (Model 3)
+```{r}
+fit.ar1_1 <- gls(Strength ~ Group + Weekf + Weekf*Group, 
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_1)
+# Phi = 0.9517769
+# Residual standard error: 3.280242 
+# Degrees of freedom: 399 total; 378 residual
+
+fit.ar1_2 <- gls(Strength ~ -1 + Weekf:Group, 
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_2)
+```
+
+
+(d) Toeplitz Structure (Model 4)
+```{r}
+fit.toep_1 <- glmmTMB(Strength ~ Group + Weekf + Weekf*Group + toep(Weekf + 0 | IDf), 
+                      data = strength_long1, 
+                      dispformula = ~ 0, # Assume homogeneity of covariance matrix across treatment groups
+                      REML = TRUE)  
+summary(fit.toep_1)
+
+fit.toep_2 <- glmmTMB(Strength ~ -1 + Weekf:Group + toep(Weekf + 0 | IDf), 
+                      data = strength_long1, 
+                      dispformula = ~0, 
+                      REML = TRUE)  
+summary(fit.toep_2)
+
+```
+
+
+# Model Comparison: Extract AIC and BIC for Model Comparison
+```{r}
+# Extract AIC, BIC, and log-likelihood values for each model
+aic_values <- c(AIC(fit.unstructured_1), AIC(fit.cs_1), AIC(fit.ar1_1), AIC(fit.toep_1))
+bic_values <- c(BIC(fit.unstructured_1), BIC(fit.cs_1), BIC(fit.ar1_1), BIC(fit.toep_1))
+logLik_values <- c(logLik(fit.unstructured_1), logLik(fit.cs_1), logLik(fit.ar1_1), logLik(fit.toep_1))
+
+# Create a comparison data frame
+model_names <- c("Unstructured Model 1", "Compound Symmetry Model 2", "AR(1) Model 3", "Toeplitz Model 4")
+Comparison_Table <- data.frame(Model = model_names, 
+                               AIC = aic_values, 
+                               BIC = bic_values,
+                               LogLikelihood = logLik_values)
+print(Comparison_Table)
+```
+- AR(1) Model 3 has the lowest AIC (1312.804) and BIC (1403.306), indicating it provides the best fit among the tested models when considering both criteria. Yet, Toeplitz Model 4 has the highest log-likelihood (-624.3451), meaning it fits the data better than the other models, even though it is penalized more by AIC and BIC for being more complex. 
+
+
+# To Perform Likelihood Ratio Tests:
+```{r}
+# Likelihood ratio tests between Ar1 vs TOEPH
+# H0: AR(1), H1: TOEP 
+df_ar1 <- attr(logLik(fit.ar1_1), "df")
+df_toep <- attr(logLik(fit.toep_1), "df")
+df_difference <- df_ar1 - df_toep
+
+LRT_statistic = -2 * (logLik(fit.ar1_1)-logLik(fit.toep_1))
+p_value <- pchisq(LRT_statistic, df = abs(df_difference), lower.tail = FALSE)
+# p_value <- pchisq(18.1134, df = 11, lower.tail = FALSE)
+# p_value
+
+# Print results
+cat("LRT_statistic:", LRT_statistic, "\n")
+cat("Degrees of Freedom Difference:", abs(df_difference), "\n")
+cat("P-value:", p_value, "\n")
+# P>0.05, thus H0 is not rejected and AR(1) is better model.
+
+```
+* From the log-likelihood ratio test, AR(1) model is sufficient, and there is no significant improvement in fit with the more complex Toeplitz model.
+
+Conclusion: AR(1) Model is the most appropriate model for the data based on:
+1) It has the lowest AIC and BIC, meaning it provides the best fit while balancing model complexity.
+2) The LRT shows no significant improvement when using the more complex Toeplitz model, meaning AR(1) is sufficient for explaining the covariance structure.
+
+Thus, all three —AIC, BIC, and the likelihood ratio test—are in agreement: AR(1) Model 3 is the most appropriate model for the data. The additional complexity of the Toeplitz model is not justified by a significant improvement in fit.
+
+
+
+
+## Question3. Selected covariance model: AR(1) model.
+
+(a)	Fit a model which includes effects of week, treatment, and their interaction (weekfxtreatment). Use GLS or glmmTMB, depending on the covariance structure. weekf is week as a factor.  
+
+```{r}
+fit.ar1_1 <- gls(Strength ~ Group + Weekf + Weekf*Group, 
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_1)
+anova(fit.ar1_1)
+
+```
+Is treatment*weekf significant?
+
+No. P-value for the interaction is 0.3 > 0.05. Thus, the interaction between group and weekf is not statistically significant, implying that the group (treatment) effect on strength does not significantly differ across the weeks.
+
+At which weeks is the difference among the treatment groups significant?
+
+The sitfinificant differences occured mostly in the later weeks. To be specific, at week 5,6, and 7, both the RI and WI group show significant differences from the control group with p<0.05. Significant differences between RI and the control group occur at Weeks 2, 5, 6, and 7.
+Significant differences between WI and the control group occur at Weeks 4, 5, 6, and 7.
+
+
+
+
+(b) Use the nested model without grand mean (-1 + weekf:treatment). Use orthogonal polynomials contrasts to test linear and quadratic trends in the WI treatment group and the RI group. Write down estimates of the trends and test statistics. Which trends are significant?
+```{r}
+fit.ar1_2 <- gls(Strength ~ -1 + Weekf:Group, 
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_2)
+
+
+# Test polynormial trends using orthogonal polynomial contrast coefficients:
+fit.ar1_2$coefficients
+# contrast
+contr.poly(7)
+orthpoly <- contr.poly(7)
+zerovec <- c (0,0,0,0,0,0,0)
+
+```
+
+
+To test linear and quadratic trends in the RI group:
+```{r}
+# Contrast coeff for linear trend in RI group
+c1_RI <- c( zerovec, orthpoly[,1], zerovec)
+c1_RI
+
+betahat <- fit.ar1_2$coefficients  # extract coefficiennts
+c1_RI%%betahat
+
+linear_trend_RI <- sum(c1_RI * betahat)  # Estimate the linear trend for RI
+cat("Est.linear_trend_RI:", linear_trend_RI, "\n")
+
+
+# Quadratic contrast vector for RI group
+c2_RI <- c(zerovec, orthpoly[,2], zerovec)  # Contrast for RI quadratic trend
+quadratic_trend_RI <- sum(c2_RI * betahat)  # Estimate the quadratic trend for RI
+cat("Est.quadratic_trend_RI:", quadratic_trend_RI, "\n") 
+```
+
+
+To test linear and quadratic trends in the WI group:
+```{r}
+
+# Contrast coeff for linear trend in WI group
+c1_WI <- c( zerovec, zerovec, orthpoly[,1])
+c1_WI
+c1_WI%%betahat
+
+linear_trend_WI <- sum(c1_WI * betahat)  # Estimate the linear trend for WI
+cat("Est.linear_trend_WI:", linear_trend_WI, "\n")
+
+
+# Quadratic contrast vector for RI group
+c2_WI <- c(zerovec, zerovec, orthpoly[,2])  # Contrast for WI quadratic trend
+quadratic_trend_WI <- sum(c2_WI * betahat)  # Estimate the quadratic trend for WI
+cat("Est.quadratic_trend_WI:", quadratic_trend_WI, "\n") 
+
+
+```
+
+
+
+T statistics and p-value for linear trend for RI:
+```{r}
+
+# Get covariance matrix of the model
+covmat <- vcov(fit.ar1_2)
+
+# Calculate the standard error of the linear trend for RI
+linear_trend_RI_se <- sqrt(t(c1_RI) %*% covmat %*% c1_RI)
+
+cat("linear_trend_RI:",linear_trend_RI, "\n")
+cat("linear_trend_RI_se:",linear_trend_RI_se, "\n")
+
+
+# Calculate t-value and p-value for the linear trend in RI
+t_value_linear_RI <- linear_trend_RI / linear_trend_RI_se
+
+# df
+N <- nrow(strength_long1)
+p <- length(fit.ar1_2$coefficients)
+df_residual <- N - p
+cat("df_residual:", df_residual,"\n") # 378
+
+p_value_linear_RI <- 2 * pt(-abs(t_value_linear_RI), df_residual)
+
+
+cat("t statistic:",t_value_linear_RI, "\n")
+cat("p-value:",p_value_linear_RI, "\n")
+
+
+```
+=> linear_trend_RI is significant (P<0.05).
+
+
+```{r}
+# Calculate the standard error of the linear trend for WI
+linear_trend_WI_se <- sqrt(t(c1_WI) %*% covmat %*% c1_WI)
+
+cat("linear_trend_WI:",linear_trend_WI, "\n")
+cat("linear_trend_WI_se:",linear_trend_WI_se, "\n")
+
+
+# Calculate t-value and p-value for the linear trend in RI
+t_value_linear_WI <- linear_trend_WI / linear_trend_WI_se
+
+p_value_linear_WI <- 2 * pt(-abs(t_value_linear_WI), df_residual)
+
+
+cat("t statistic:",t_value_linear_WI, "\n")
+cat("p-value:",p_value_linear_WI, "\n")
+```
+=> linear_trend_WI is significant (P>0.05).
+
+```{r}
+# Calculate the standard error of the quadratic trend for RI
+quadratic_trend_RI_se <- sqrt(t(c2_RI) %*% covmat %*% c2_RI)
+
+cat("quadratic_trend_RI:",quadratic_trend_RI, "\n")
+cat("quadratic_trend_RI_se:",quadratic_trend_RI_se, "\n")
+
+
+# Calculate t-value and p-value for the quadratic trend in RI
+t_value_quadratic_RI <- quadratic_trend_RI / quadratic_trend_RI_se
+
+p_value_quadratic_RI <- 2 * pt(-abs(t_value_quadratic_RI), df_residual)
+
+
+cat("t statistic:",t_value_quadratic_RI, "\n")
+cat("p-value:",p_value_quadratic_RI, "\n")
+```
+=> quadratic_trend_RI is significant (P<0.05)
+
+
+
+```{r}
+# Calculate the standard error of the quadratic trend for WI
+quadratic_trend_WI_se <- sqrt(t(c2_WI) %*% covmat %*% c2_WI)
+
+cat("quadratic_trend_WI:",quadratic_trend_WI, "\n")
+cat("quadratic_trend_WI_se:",quadratic_trend_WI_se, "\n")
+
+
+# Calculate t-value and p-value for the quadratic trend in RI
+t_value_quadratic_WI <- quadratic_trend_WI / quadratic_trend_WI_se
+
+p_value_quadratic_WI <- 2 * pt(-abs(t_value_quadratic_WI), df_residual)
+
+
+cat("t statistic:",t_value_quadratic_WI, "\n")
+cat("p-value:",p_value_quadratic_WI, "\n")
+```
+=> quadratic_trend_WI is not significant (P>0.05).
+
+
+
+```{r}
+# Create a dataframe to display the results using the notation from your code
+trend_results <- data.frame(
+  Group = c("RI", "RI", "WI", "WI"),
+  Trend = c("Linear", "Quadratic", "Linear", "Quadratic"),
+  Estimate = c(linear_trend_RI, quadratic_trend_RI, linear_trend_WI, quadratic_trend_WI),
+  `Standard Error` = c(linear_trend_RI_se, quadratic_trend_RI_se, linear_trend_WI_se, quadratic_trend_WI_se),
+  `t-value` = c(t_value_linear_RI, t_value_quadratic_RI, t_value_linear_WI, t_value_quadratic_WI),
+  `p-value` = c(p_value_linear_RI, p_value_quadratic_RI, p_value_linear_WI, p_value_quadratic_WI)
+)
+
+# Display the dataframe as a table
+print(trend_results)
+```
+
+The linear trend is significant for both the RI and WI groups, indicating that strength increases over time for both treatment groups.
+The quadratic trend is significant only for the RI group, suggesting that strength improvement in the RI group is non-linear, while the WI group shows no significant quadratic trend.
+
+
+
+(c)	Use a contrast with orthogonal polynomial coefficients to test the null hypothesis that the quadratic trend for WI is equal to the quadratic trend for RI. This is a contrast of contrasts. Write down estimate of contrast and test statistic. Is there a significant difference? Why or why not?
+
+H0: beta_quadratic_WI = beta_quadatic RI
+H1: beta_quadratic_WI ≠ beta_quadatic RI
+```{r}
+c2_contrast <- c2_WI - c2_RI
+# Estimate the contrast (quadratic trend WI - quadratic trend RI)
+contrast_estimate <- sum(c2_contrast * betahat)
+cat("Estimate of contrast:", contrast_estimate, "\n")
+
+# Standard error of the contrast
+contrast_se <- sqrt(t(c2_contrast) %*% covmat %*% c2_contrast)
+cat("Standard error of contrast:", contrast_se, "\n")
+
+# Calculate the t-value for the contrast
+t_value_contrast <- contrast_estimate / contrast_se
+cat("t-value for contrast:", t_value_contrast, "\n")
+
+# Calculate the p-value for the contrast
+p_value_contrast <- 2 * pt(-abs(t_value_contrast), df_residual)
+cat("p-value for contrast:", p_value_contrast, "\n")
+```
+With p=0.3711226 > 0.05, there is no significant difference between the quadratic trends for the WI and RI groups. Thus, we fail to reject the null hypothesis. The data does not provide enough evidence to conclude that the rate of non-linear (quadratic) change in strength over time differs between the two groups.
+
+
+## Question 4. Selected model AR(1) with continuous week.
+
+(a)	Estimate a model with linear, quadratic and cubic trends over time and interaction of polynomial trends by treatment group. Test weekxtreatment, weeksqxtreatment and weekcubedxtreatment. 
+```{r}
+
+strength_long1$Week_sq <- strength_long1$Week_num^2
+strength_long1$Week_cub <- strength_long1$Week_num^3
+
+fit.ar1_poly <- gls(Strength ~ Group + Week_num + Week_sq + Week_cub +
+                   Week_num*Group + Week_sq*Group + Week_cub*Group, 
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_poly)
+anova(fit.ar1_poly)
+
+
+```
+Which polynomial trends differ by treatment group? Use the model for ΣY selected above.
+=> 
+Week_num and Week_sq: There is significant linear and quadratic trend over time across all groups. Cubic trend is NOT significant.
+Group*Week_num : Linear trend by group is significantly different, meaning the rate of linear change in strength over time is significantly different among WI, RI, and CONT groups. Quadratic or cubic trend by groups are not significantly different. 
+
+(c)
+```{r}
+# Define the number of weeks (time points)
+weeks <- 1:7
+
+# Define the treatment group (0 for CONT group)
+# Since this is for the control group, we don't include treatment terms
+X_i_control <- cbind(
+  Intct = rep(1, length(weeks)),    # Intercept (β0)
+  Linear = weeks,                   # Linear time effect (β1 * t)
+  Quad = weeks^2,                   # Quadratic time effect (β2 * t^2)
+  Cubic = weeks^3,                  # Cubic time effect (β3 * t^3)
+  RI = rep(0, length(weeks)),       # No treatment 1, RI
+  WI = rep(0, length(weeks)),       # No treatment 2, WI 
+  L_RI = rep(0, length(weeks)),     # No linear interaction with trt 1
+  L_WI = rep(0, length(weeks)),     # No linear interaction with trt 2
+  Q_RI = rep(0, length(weeks)),     # No quadratic interaction with trt 1
+  Q_WI = rep(0, length(weeks)),     # No quadratic interaction with trt 2
+  C_RI = rep(0, length(weeks)),     # No cubic interaction with trt 1
+  C_WI = rep(0, length(weeks))      # No cubic interaction with trt 2
+)
+
+# Print the Xi matrix for the control group
+print(X_i_control)
+```
+
+
+
+(d)use the nested model (-1 + week:treatment). Include week, weeksq, and weekcubed. Which trends are significant for CONT? for RI? for WI? 
+```{r}
+fit.ar1_poly_nested <- 
+  gls(Strength ~ -1 + Group + Week_num:Group + Week_sq:Group + Week_cub:Group,
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_poly_nested)
+anova(fit.ar1_poly_nested)
+
+```
+
+
+
+Center week to reduce collinearity.
+```{r}
+average_week <- mean(1:7)
+average_week #4
+
+# Center the week (average_week = 4)
+strength_long1$Week_c <- strength_long1$Week_num - 4
+strength_long1$Week_c_sq <- strength_long1$Week_c*strength_long1$Week_c
+strength_long1$Week_c_cub <- strength_long1$Week_c*strength_long1$Week_c_sq
+
+fit.ar1_poly_nested_centered <-gls(Strength ~ 
+    -1 + Group + Week_c:Group + Week_c_sq:Group + Week_c_cub:Group,
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "REML")
+summary(fit.ar1_poly_nested_centered)
+anova(fit.ar1_poly_nested_centered)
+  
+```
+
+
+
+
+(e)	Compare the test statistic using orthogonal polynomial contrasts for quadratic trend in 3(b) to the test statistics for quadratic trend in the previous question, 4(d). Are the test statistics the same? Why would the test statistics be different?
+
+```{r}
+# 3(b) results
+trend_results <- data.frame(
+  Group = c("RI", "WI"),
+  Trend = c("Quadratic", "Quadratic"),
+  Estimate = c(quadratic_trend_RI, quadratic_trend_WI),
+  `Standard Error` = c(quadratic_trend_RI_se, quadratic_trend_WI_se),
+  `t-value` = c(t_value_quadratic_RI, t_value_quadratic_WI),
+  `p-value` = c(p_value_quadratic_RI, p_value_quadratic_WI)
+)
+print(trend_results)
+
+
+# Create comparison table for 3(b) and 4(d) centered
+comparison_results <- data.frame(
+  Group = c("RI", "RI", "WI", "WI"),
+  Trend = c("Quadratic", "Quadratic", "Quadratic", "Quadratic"),
+  Question = c("3(b)", "4(d)_centered", "3(b)", "4(d)_centered"),
+  Estimate = c(quadratic_trend_RI, -0.07766, quadratic_trend_WI, -0.03063),
+  `Standard Error` = c(quadratic_trend_RI_se, 0.0305480, quadratic_trend_WI_se, 0.0266645),
+  `t-value` = c(t_value_quadratic_RI, -2.54239, t_value_quadratic_WI, -1.14854),
+  `p-value` = c(p_value_quadratic_RI, 0.0114, p_value_quadratic_WI, 0.2515)
+)
+
+# Display the table
+print(comparison_results)
+```
+Centering reduced multicollinearity and the quadratic trend in the RI group becomes more significant. Thus, centering has improved the model fit and made the quadratic trend for RI more prominent, as seen in the lowered p-value in the centered model. 
+The quadratic trend for the WI group was not significant, and collinearity may not be a significant issue for WI’s quadratic trend.
+
+
+## Graphs
+poly_nested_Centered
+```{r}
+library(ggplot2)
+
+strength_long1$predicted_strength_c <- predict(fit.ar1_poly_nested_centered)
+
+# Plot the linear trend for RI and WI
+ggplot(strength_long1, aes(x = Week_c, y = predicted_strength_c, color = Group)) +
+  geom_line(size = 1.5) +
+  labs(title = "Trend for RI and WI: AR1_poly_nested_centered", x = "Centered Week", y = "Predicted Strength") +
+  theme_minimal()
+
+```
+Poly
+```{r}
+strength_long1$predicted_strength_p <- predict(fit.ar1_poly)
+
+# Plot the linear trend for RI and WI
+ggplot(strength_long1, aes(x = Week_num, y = predicted_strength_p, color = Group)) +
+  geom_line(size = 1.5) +
+  labs(title = "Trend for RI and WI Groups: AR1_poly", x = "Week", y = "Predicted Strength") +
+  theme_minimal()
+
+```
+
+
+Original data trends: individual
+```{r}
+library(tidyverse)
+
+
+# Individual plots for each subject
+ggplot(strength_long1, aes(x = Week, y = Strength, group = ID)) +
+  geom_line() +
+  facet_wrap(~ Group) +
+  labs(title = "Individual Trends per Group", x = "Week", y = "Strength")
+
+```
+Original data trends: average
+```{r}
+# Plot the average trends for each group
+group_trend <- strength_long1 %>%
+  group_by(Group, Week) %>%
+  summarize(Avg_Strength = mean(Strength))
+
+ggplot(group_trend, aes(x = Week, y = Avg_Strength, color = Group, group = Group)) +
+  geom_line(size = 1.5) +
+  labs(title = "Average Trend per Group", x = "Week", y = "Average Strength")
+```
+
+
+(f) model: fit.ar1_poly_nested
+```{r}
+
+# Full model
+fit_full <- gls(Strength ~ -1 + Group + Week_num:Group + Week_sq:Group + Week_cub:Group,
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "ML")
+
+# Reduced models (dropping higher-order terms one by one)
+fit_no_cub <- gls(Strength ~ -1 + Group + Week_num:Group + Week_sq:Group,
+                  data = strength_long1, 
+                  correlation = corAR1(form = ~ 1 | IDf), 
+                  method = "ML")
+
+fit_no_sq <- gls(Strength ~ -1 + Group + Week_num:Group,
+                 data = strength_long1, 
+                 correlation = corAR1(form = ~ 1 | IDf), 
+                 method = "ML")
+
+fit_no_week <- gls(Strength ~ -1 + Group,
+                  data = strength_long1, 
+                  correlation = corAR1(form = ~ 1 | IDf), 
+                  method = "ML")
+
+# Perform ANOVA comparisons to get sequential sum of squares
+anova(fit_no_cub, fit_full)  # not significant --> drop cub
+anova(fit_no_sq, fit_no_cub)  # significant --> keep sq
+anova(fit_no_week, fit_no_sq)  # highly significant --> keep linear 
+```
+
+
+
+
+
+
+
