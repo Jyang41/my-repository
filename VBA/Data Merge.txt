@@ -1,0 +1,63 @@
+## Data Merge
+
+Sub Summarize()
+    Dim MyWB As Workbook
+    Dim wbSource As Workbook
+    Dim ws As Worksheet
+    Dim wsMaster As Worksheet
+    Dim F_dlg As FileDialog
+    Dim F_Path As String
+    Dim F_Name As String
+    Dim lastRow As Long
+    Dim nextRow As Long
+    Dim fileCount As Integer
+    
+    ' Initialize variables
+    Set MyWB = ActiveWorkbook
+    Set F_dlg = Application.FileDialog(msoFileDialogFolderPicker)
+    Set wsMaster = MyWB.Sheets(1) ' Assuming the master sheet is the first sheet in the active workbook
+    
+    ' Show the folder picker dialog
+    F_dlg.Title = "Select Folder with Excel Files"
+    If F_dlg.Show <> -1 Then Exit Sub ' Exit if user cancels
+    
+    F_Path = F_dlg.SelectedItems(1) & "\" ' Get the selected folder path
+    
+    ' Initialize the first row for data insertion
+    nextRow = wsMaster.Cells(wsMaster.Rows.Count, "A").End(xlUp).Row + 1
+    fileCount = 0
+    
+    ' Loop through files
+    F_Name = Dir(F_Path & "*.csv") ' Match .csv files
+    'F_Name = Dir(F_Path & "*.xls*") ' Match .xls, .xlsx, and .xlsm files
+    
+    Do While F_Name <> ""
+        Set wbSource = Workbooks.Open(F_Path & F_Name)
+        Set ws = wbSource.Sheets(1) ' Assuming data is in the first sheet
+        
+        ' Find the last row with data in the source worksheet
+        lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        
+        ' Copy the data from the source worksheet to the master worksheet
+        ws.Range("A1").Resize(lastRow, ws.Columns.Count).Copy
+        wsMaster.Cells(nextRow, 1).PasteSpecial Paste:=xlPasteValues
+        
+        ' Update the row counter in the master worksheet
+        nextRow = wsMaster.Cells(wsMaster.Rows.Count, "A").End(xlUp).Row + 1
+        
+        ' Suppress alerts (including the clipboard message) and close the source workbook
+        Application.DisplayAlerts = False
+        wbSource.Close False
+        Application.DisplayAlerts = True
+        
+        ' Get the next file name
+        F_Name = Dir
+        fileCount = fileCount + 1
+    Loop
+     
+    ' Autofit the columns in the master worksheet
+    wsMaster.Columns.AutoFit
+    
+    MsgBox fileCount & " files merged into " & wsMaster.Name
+    
+End Sub

@@ -1,0 +1,33 @@
+## Final combine to the first tab
+
+Sub CreateAndCopyToNewTab()
+    Dim ws As Worksheet
+    Dim newSheet As Worksheet
+    Dim lastRow As Long
+    Dim currentRow As Long
+    
+    ' Create a new worksheet at the front of the active workbook
+    Set newSheet = ActiveWorkbook.Worksheets.Add(Before:=ActiveWorkbook.Worksheets(1))
+    newSheet.Name = "ConsolidatedData"  ' Rename as needed
+    
+    currentRow = 1 ' Start pasting data from the first row
+    
+    ' Loop through each sheet in the active workbook starting from the second sheet
+    For Each ws In ActiveWorkbook.Worksheets
+        If ws.Index > 1 Then
+            ' Find the last row with data on the current sheet
+            lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+            
+            ' Copy data from current sheet and paste into the new sheet
+            ws.Range("A1:A" & lastRow).EntireRow.Copy
+            newSheet.Cells(currentRow, 1).PasteSpecial xlPasteValues
+            
+            ' Clear clipboard to prevent memory overflow error
+            Application.CutCopyMode = False
+            
+            ' Move to the next row in the new sheet
+            currentRow = newSheet.Cells(newSheet.Rows.Count, 1).End(xlUp).Row + 1
+        End If
+    Next ws
+
+End Sub

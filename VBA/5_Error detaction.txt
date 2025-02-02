@@ -1,0 +1,114 @@
+## Error detaction
+
+Sub runboth()
+
+    
+    
+    
+    
+    
+    HighlightAndMarkErrors
+    Highlight999InKandL1
+    Highlight999InKandL2
+    Highlight999InKandL3
+
+
+
+
+
+
+End Sub
+
+Sub HighlightAndMarkErrors()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim valuesToFind As Variant
+    Dim i As Integer
+    
+    ' Set worksheet
+    Set ws = ActiveWorkbook.Sheets("ConsolidatedData")
+    
+    ' List of values to find and highlight
+    valuesToFind = Array("#", "#.#", ".##", "##", "###", "#.##", "##.#")
+    ' Loop through each cell in the worksheet
+    For Each cell In ws.UsedRange
+        ' Check each value in the array
+        For i = LBound(valuesToFind) To UBound(valuesToFind)
+            If cell.Value = valuesToFind(i) Then
+                cell.Interior.Color = vbYellow  ' Highlight cell in yellow
+                With ws.Cells(cell.Row, "Y")
+                    .Value = "Error detected"     ' Mark "Error detected" in column Y
+                    .Font.Bold = True             ' Make the text bold
+                    .Font.Color = vbRed           ' Make the text red
+                End With
+                Exit For ' Exit inner loop once a match is found
+            End If
+        Next i
+    Next cell
+End Sub
+
+Sub Highlight999InKandL1()
+    Dim ws As Worksheet
+    Dim cell As Range
+    
+    ' Set worksheet
+    Set ws = ActiveWorkbook.Sheets("ConsolidatedData")
+    
+    
+    ' Loop through each cell in columns K and L
+    For Each cell In ws.Range("K:K, L:L")
+        If cell.Value = "999" Then
+            cell.Interior.Color = vbYellow  ' Highlight cell in yellow
+            With ws.Cells(cell.Row, "Y")
+                    .Value = "Error detected"     ' Mark "Error detected" in column Y
+                    .Font.Bold = True             ' Make the text bold
+                    .Font.Color = vbRed           ' Make the text red
+                End With
+        End If
+    Next cell
+End Sub
+
+
+Sub Highlight999InKandL2()
+    Dim ws As Worksheet
+    Dim cell As Range
+    
+    ' Set worksheet
+    Set ws = ActiveWorkbook.Sheets("ConsolidatedData")
+    
+    
+    ' Loop through each cell in columns K and L
+    For Each cell In ws.Range("K:K, L:L")
+        If cell.Value = "99.9" Then
+            cell.Interior.Color = vbYellow  ' Highlight cell in yellow
+            With ws.Cells(cell.Row, "Y")
+                    .Value = "Error detected"     ' Mark "Error detected" in column Y
+                    .Font.Bold = True             ' Make the text bold
+                    .Font.Color = vbRed           ' Make the text red
+                End With
+        End If
+    Next cell
+End Sub
+
+
+
+Sub Highlight999InKandL3()
+    Dim ws As Worksheet
+    Dim cell As Range
+    
+    ' Set worksheet
+    Set ws = ActiveWorkbook.Sheets("ConsolidatedData")
+    
+    
+    ' Loop through each cell in columns K and L
+    For Each cell In ws.Range("K:K, L:L")
+        If cell.Value = "9.99" Then
+            cell.Interior.Color = vbYellow  ' Highlight cell in yellow
+            With ws.Cells(cell.Row, "Y")
+                    .Value = "Error detected"     ' Mark "Error detected" in column Y
+                    .Font.Bold = True             ' Make the text bold
+                    .Font.Color = vbRed           ' Make the text red
+                End With
+        End If
+    Next cell
+End Sub

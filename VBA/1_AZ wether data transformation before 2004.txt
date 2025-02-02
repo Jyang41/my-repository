@@ -1,0 +1,537 @@
+## AZ wether data transformation before 2004
+
+Sub RunAllSubroutines()
+
+SetAllFontColorToBlack
+DeleteRowIfTextFound1
+DeleteRowIfTextFound2
+DeleteRowIfTextFound3
+DeleteRowIfTextFound4
+DeleteRowIfTextFound5
+DeleteRowIfTextFound6
+DeleteRowIfTextFoundWithWildcard
+DeleteRowIfTextFoundWithWildcard2
+DeleteRowIfTextFoundWithWildcard3
+DeleteRowIfStartsWithAsterisk
+DeleteRowsWithBlankInColA
+ReplaceDates
+TextToColumns_SpaceDelimiter
+    Dim i As Integer
+    For i = 1 To 7
+        SetRangeC1ToLastAndShiftLeft
+    Next i
+    
+    For i = 1 To 5
+        SetRangeC1ToLastAndShiftLeft2
+    Next i
+InsertColumnA
+CopyB1ToColTIfColSHasValue
+CopyB1ToColTIfColSHasValue2
+InsertColumnG
+FindAndReplaceWithHeaders
+InsertROW1
+CopyB2ValueAndDeleteRows
+SelectAllAndAdjustCenter
+    
+End Sub
+
+Sub SetAllFontColorToBlack()
+    Dim ws As Worksheet
+    
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+    
+    ' Set the font color of all cells to black
+    ws.Cells.Font.Color = RGB(0, 0, 0)
+End Sub
+
+
+Sub DeleteRowIfTextFound1()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim searchText As String
+    searchText = "                 ARIZONA METEOROLOGICAL NETWORK MONTHLY SUMMARY"
+    
+    ' Set the worksheet to work with (you can change "Sheet1" to the name of your sheet)
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Loop through each cell in column A to search for the text
+    For Each cell In ws.Range("A:A")
+        ' If the cell contains the search text, delete the entire row
+        If cell.Value = searchText Then
+            cell.EntireRow.Delete
+        End If
+    Next cell
+End Sub
+
+
+
+Sub DeleteRowIfTextFound2()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim searchText As String
+    searchText = "     DATE   AIR TEMP  REL HUM SOIL TEMP   WIND  SOLAR RAIN   ETo     HEAT UNITS"
+    
+    ' Set the worksheet to work with (you can change "Sheet1" to the name of your sheet)
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Loop through each cell in column A to search for the text
+    For Each cell In ws.Range("A:A")
+        ' If the cell contains the search text, delete the entire row
+        If cell.Value = searchText Then
+            cell.EntireRow.Delete
+        End If
+    Next cell
+End Sub
+Sub DeleteRowIfTextFound3()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim searchText As String
+    
+    ' Use wildcards to search for partial matches
+    searchText = "*SPEED  RAD*"
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Determine the last row in column A to avoid looping through empty cells
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through the rows from bottom to top to avoid index shifting issues during deletion
+    For i = lastRow To 1 Step -1
+        ' If the cell in column A contains the search text (with wildcard), delete the row
+        If ws.Cells(i, 1).Value Like searchText Then
+            ws.Rows(i).EntireRow.Delete
+        End If
+    Next i
+End Sub
+
+
+
+Sub DeleteRowIfTextFound4()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim searchText As String
+    searchText = "            MX MN AV  MX MN AV  AV  AV  MX   AV                    55   50   45"
+    
+    ' Set the worksheet to work with (you can change "Sheet1" to the name of your sheet)
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Loop through each cell in column A to search for the text
+    For Each cell In ws.Range("A:A")
+        ' If the cell contains the search text, delete the entire row
+        If cell.Value = searchText Then
+            cell.EntireRow.Delete
+        End If
+    Next cell
+End Sub
+
+
+Sub DeleteRowIfTextFound5()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim searchText As String
+    searchText = "    ------ --- -- -- --- -- -- --- ---  --  ---  ---  ----  ----  ---  ---  ---"
+    
+    ' Set the worksheet to work with (you can change "Sheet1" to the name of your sheet)
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Loop through each cell in column A to search for the text
+    For Each cell In ws.Range("A:A")
+        ' If the cell contains the search text, delete the entire row
+        If cell.Value = searchText Then
+            cell.EntireRow.Delete
+        End If
+    Next cell
+End Sub
+
+Sub DeleteRowIfTextFound6()
+    Dim ws As Worksheet
+    Dim cell As Range
+    Dim searchText As String
+    searchText = "    ------ --- -- -- --- -- -- --- ---  -- ----  ---  ----  ----  ---  ---  ---"
+    
+    ' Set the worksheet to work with (you can change "Sheet1" to the name of your sheet)
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Loop through each cell in column A to search for the text
+    For Each cell In ws.Range("A:A")
+        ' If the cell contains the search text, delete the entire row
+        If cell.Value = searchText Then
+            cell.EntireRow.Delete
+        End If
+    Next cell
+End Sub
+Sub DeleteRowIfTextFoundWithWildcard()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim searchText As String
+    
+    searchText = "*RESULTANT WIND VECTOR*"
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Determine the last row in column A to avoid looping through empty cells
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through the rows from bottom to top to avoid index shifting issues during deletion
+    For i = lastRow To 1 Step -1
+        ' If the cell in column A contains the search text (with wildcard), delete the row
+        If ws.Cells(i, 1).Value Like searchText Then
+            ws.Rows(i).EntireRow.Delete
+        End If
+    Next i
+End Sub
+Sub DeleteRowIfTextFoundWithWildcard2()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim searchText As String
+    
+    searchText = "*AVG*"
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Determine the last row in column A to avoid looping through empty cells
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through the rows from bottom to top to avoid index shifting issues during deletion
+    For i = lastRow To 1 Step -1
+        ' If the cell in column A contains the search text (with wildcard), delete the row
+        If ws.Cells(i, 1).Value Like searchText Then
+            ws.Rows(i).EntireRow.Delete
+        End If
+    Next i
+End Sub
+
+Sub DeleteRowIfTextFoundWithWildcard3()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim searchText As String
+    
+    searchText = "*TOTAL*"
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Determine the last row in column A to avoid looping through empty cells
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through the rows from bottom to top to avoid index shifting issues during deletion
+    For i = lastRow To 1 Step -1
+        ' If the cell in column A contains the search text (with wildcard), delete the row
+        If ws.Cells(i, 1).Value Like searchText Then
+            ws.Rows(i).EntireRow.Delete
+        End If
+    Next i
+End Sub
+
+Sub DeleteRowIfStartsWithAsterisk()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Determine the last row in column A to avoid looping through empty cells
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through the rows from bottom to top to avoid index shifting issues during deletion
+    For i = lastRow To 1 Step -1
+        ' Trim leading/trailing spaces and check if the cell in column A starts with an asterisk
+        If Left(Trim(ws.Cells(i, 1).Value), 1) = "*" Then
+            ws.Rows(i).EntireRow.Delete
+        End If
+    Next i
+End Sub
+
+Sub DeleteRowsWithBlankInColA()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column V
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through rows from the last row to the first row
+    ' Deleting from the bottom-up prevents row shifting issues
+    For i = lastRow To 1 Step -1
+        If ws.Cells(i, 1).Value = "" Then ' Column A is the 1st column
+            ws.Rows(i).Delete
+        End If
+    Next i
+End Sub
+
+Sub ReplaceDates()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim monthNames As Variant
+    Dim dateParts As Variant
+    Dim newDate As String
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+' Find the last row in the column (e.g., Column A)
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+
+    ' Month names array
+    monthNames = Array("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+    ' Loop through each cell in Column A
+    For Each cell In ws.Range("A1:A" & lastRow)
+        ' Split the cell value by "/"
+        dateParts = Split(cell.Value, "/")
+        
+        ' Check if it has two parts (month and day)
+        If UBound(dateParts) = 1 Then
+            ' Replace with "Month Day" format
+            newDate = monthNames(CInt(dateParts(0)) - 1) & " " & dateParts(1)
+            cell.Value = newDate
+        End If
+    Next cell
+
+End Sub
+
+Sub TextToColumns_SpaceDelimiter()
+    Dim ws As Worksheet
+    Dim rng As Range
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Set the range (modify the range as needed)
+    Set rng = ws.Range("A:A") ' Change the range to your actual data range
+
+    ' Apply Text to Columns with space as the delimiter
+    rng.TextToColumns Destination:=rng, DataType:=xlDelimited, _
+                      TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, _
+                      Tab:=False, Semicolon:=False, Comma:=False, Space:=True, _
+                      Other:=False
+End Sub
+
+Sub SetRangeC1ToLastAndShiftLeft()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim rng As Range
+    Dim i As Long, j As Long
+    
+    ' Set your worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last non-empty row in column C
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+    
+    ' Set the range from C1 to the last non-empty row in column C
+    Set rng = ws.Range("a1:a" & lastRow)
+    
+    ' Optional: Select the range
+    rng.Select
+    
+    ' Loop through each row from A1 to the last non-empty row in column A
+    For i = 1 To lastRow
+        ' Find the last column in the current row
+        lastCol = ws.Cells(i, ws.Columns.Count).End(xlToLeft).Column
+        
+        ' Loop through each cell in the current row from A to the last column
+        For j = 1 To lastCol
+            ' If the cell is empty, shift the cells to the left
+            If IsEmpty(ws.Cells(i, j)) Then
+                ws.Cells(i, j).Delete Shift:=xlToLeft
+            End If
+        Next j
+    Next i
+End Sub
+
+
+Sub SetRangeC1ToLastAndShiftLeft2()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim rng As Range
+    Dim i As Long, j As Long
+    
+    ' Set your worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last non-empty row in column C
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    
+    ' Set the range from C1 to the last non-empty row in column C
+    Set rng = ws.Range("a1:a" & lastRow)
+    
+    ' Optional: Select the range
+    rng.Select
+    
+    ' Loop through each row from A1 to the last non-empty row in column A
+    For i = 1 To lastRow
+        ' Find the last column in the current row
+        lastCol = ws.Cells(i, ws.Columns.Count).End(xlToLeft).Column
+        
+        ' Loop through each cell in the current row from A to the last column
+        For j = 1 To lastCol
+            ' If the cell is empty, shift the cells to the left
+            If IsEmpty(ws.Cells(i, j)) Then
+                ws.Cells(i, j).Delete Shift:=xlToLeft
+            End If
+        Next j
+    Next i
+End Sub
+
+Sub InsertColumnA()
+    ' Insert a new column at Column A
+    Columns("A").Insert Shift:=xlToRight
+End Sub
+
+
+Sub CopyB1ToColTIfColSHasValue()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim valueToCopy As String
+    
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+    
+    ' Get the value in B1
+    valueToCopy = ws.Range("B1").Value
+    
+    ' Find the last row with data in column S
+    lastRow = ws.Cells(ws.Rows.Count, "S").End(xlUp).Row
+    
+    ' Loop through each row in column S
+    For i = 1 To lastRow
+        ' Check if the cell in column S has a value
+        If ws.Cells(i, "S").Value <> "" Then
+            ' Copy the value from B1 to the corresponding cell in column T
+            ws.Cells(i, "T").Value = valueToCopy
+        End If
+    Next i
+End Sub
+
+Sub CopyB1ToColTIfColSHasValue2()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim valueToCopy As String
+    
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+    
+    ' Get the value in B1
+    valueToCopy = ws.Range("B2").Value
+    
+    ' Find the last row with data in column S
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    
+    ' Loop through each row in column S
+    For i = 1 To lastRow
+        ' Check if the cell in column S has a value
+        If ws.Cells(i, "B").Value <> "" Then
+            ' Copy the value from B1 to the corresponding cell in column T
+            ws.Cells(i, "A").Value = valueToCopy
+        End If
+    Next i
+End Sub
+
+Sub InsertColumnG()
+    ' Insert a new column at Column G
+    Columns("G").Insert Shift:=xlToRight
+    Columns("R").Insert Shift:=xlToRight
+End Sub
+
+
+Sub FindAndReplaceWithHeaders()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim headers As String
+    Dim headerArray() As String
+    Dim searchValue As String
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last row in column B
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Define the header line
+    headers = "Year,Month,Day,AIR_TEMP_MX,AIR_TEMP_MN,AIR_TEMP_AV,DEW_PT,REL_HUM_MX,REL_HUM_MN,REL_HUM_AV,SOIL_T_4,SOIL_T_20,WIND_MX,WIND_AV,SOL,RAIN,Eto_AZ,Eto_STD,HEAT_UNITS_55,HEAT_UNITS_50,HEAT_UNITS_45,Station,County"
+    headerArray = Split(headers, ",") ' Split the header into an array
+    
+    ' Define the search value (B2 value)
+    searchValue = ws.Range("B2").Value
+    
+    ' Loop through column B to find the search value
+    For Each cell In ws.Range("B1:B" & lastRow)
+        If cell.Value = searchValue Then
+            ' Replace the entire row with the header values
+            Dim i As Integer
+            For i = LBound(headerArray) To UBound(headerArray)
+                ws.Cells(cell.Row, i + 1).Value = headerArray(i)
+            Next i
+        End If
+    Next cell
+End Sub
+
+Sub InsertROW1()
+    Rows(1).Insert Shift:=xlDown
+End Sub
+
+
+
+Sub CopyB2ValueAndDeleteRows()
+    Dim ws As Worksheet
+    Dim searchValue As String
+    Dim lastRow As Long
+    Dim i As Long
+    
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+    
+    ' Get the value in B2
+    searchValue = ws.Range("B2").Value
+    
+    ' Find the last row with data in column B
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Loop through each row in column B from the last row to the first row
+    For i = lastRow To 1 Step -1
+        ' Check if the cell in column B contains the search value
+        If ws.Cells(i, "B").Value = searchValue Then
+            ' Delete the entire row if the value matches
+            ws.Rows(i).Delete
+            ws.Rows(i - 1).Delete
+        End If
+    Next i
+End Sub
+
+Sub SelectAllAndAdjustCenter()
+    Dim ws As Worksheet
+
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Select all cells in the worksheet
+    ws.Cells.Select
+
+    ' Auto-fit all columns
+    ws.Columns.AutoFit
+
+    ' Center the content horizontally and vertically in all cells
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+    End With
+End Sub

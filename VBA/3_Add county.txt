@@ -1,0 +1,67 @@
+## Add county
+
+Sub RunBothSubs()
+
+
+
+
+    FillAndCountAInColumnB
+    DeleteRowBelowDec31
+    
+    
+    
+    
+    
+    
+    
+
+End Sub
+
+
+Sub FillAndCountAInColumnB()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim userInput As String
+    
+    ' Prompt the user for input
+    userInput = InputBox("Enter a County Name")
+    
+    ' Loop through each worksheet in the workbook
+    For Each ws In ActiveWorkbook.Worksheets
+        ' Find the last row in column A of the current worksheet
+        lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        
+        ' Check if lastRow is greater than 1 to avoid empty sheets
+        If lastRow > 1 Then
+            ' Loop through each cell in column W to fill blanks
+            For Each cell In ws.Range("W2:W" & lastRow)
+                ' Check if the cell is blank
+                If cell.Value = "" Then
+                    cell.Value = userInput ' Fill blank cells with the input
+                End If
+            Next cell
+            
+            ' Auto-fit all columns in the worksheet
+            ws.Columns.AutoFit
+            
+            ' Center content horizontally and vertically in the range W2 to W (lastRow)
+            With ws.Range("W2:W" & lastRow)
+                .HorizontalAlignment = xlCenter
+                .VerticalAlignment = xlCenter
+            End With
+        End If
+    Next ws
+End Sub
+
+Sub DeleteRowBelowDec31()
+    Dim lastRow As Long
+    lastRow = Cells(Rows.Count, "B").End(xlUp).Row
+    
+    Dim i As Long
+    For i = lastRow To 1 Step -1
+        If Cells(i, 2).Value = "Dec" And Cells(i, 3).Value = "31" Then
+            Rows(i + 1).Delete
+        End If
+    Next i
+End Sub

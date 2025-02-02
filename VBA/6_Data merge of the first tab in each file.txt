@@ -1,0 +1,62 @@
+## data merge of the first tab whic is "ConsolidatedData" tab only
+
+Option Explicit
+
+Sub MergeExcelFiles()
+    Dim NewWorkbook As Workbook
+    Dim SourceWorkbook As Workbook
+    Dim SourceWorksheet As Worksheet
+    Dim FileDialog As FileDialog
+    Dim FolderPath As String
+    Dim FileName As String
+    Dim FileExtension As String
+    Dim SheetName As String
+
+    ' Create a new workbook
+    Set NewWorkbook = Workbooks.Add
+
+    ' Select folder containing the Excel files
+    Set FileDialog = Application.FileDialog(msoFileDialogFolderPicker)
+    With FileDialog
+        .Title = "Select a folder containing Excel files to merge"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+        FolderPath = .SelectedItems(1)
+    End With
+
+    ' Loop through all the files in the folder
+    FileName = Dir(FolderPath & "\*.*")
+    Do While FileName <> ""
+        FileExtension = Right(FileName, 4)
+
+        ' Check if the file is an Excel file
+        If FileExtension = ".xls" Or FileExtension = "xlsx" Or FileExtension = "xlsm" Then
+            ' Open the source workbook
+            Set SourceWorkbook = Workbooks.Open(FolderPath & "\" & FileName)
+
+            ' Copy only the first worksheet to the new workbook
+            Set SourceWorksheet = SourceWorkbook.Worksheets(1)
+            SourceWorksheet.Copy After:=NewWorkbook.Sheets(NewWorkbook.Sheets.Count)
+            
+            ' Rename the copied sheet to the name of the source file (without extension)
+            SheetName = Left(FileName, InStrRev(FileName, ".") - 1)
+            On Error Resume Next  ' Handle potential duplicate sheet names
+            NewWorkbook.Sheets(NewWorkbook.Sheets.Count).Name = SheetName
+            On Error GoTo 0
+
+            ' Close the source workbook without saving changes
+            SourceWorkbook.Close SaveChanges:=False
+        End If
+
+        ' Get the next file
+        FileName = Dir()
+    Loop
+
+    ' Delete the default empty worksheet in the new workbook
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    NewWorkbook.Sheets(1).Delete
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+
+End Sub

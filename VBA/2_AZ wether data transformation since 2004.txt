@@ -1,0 +1,511 @@
+## AZ wether data transformation since 2004
+
+Sub RunBothSubs()
+    ' Call the first subroutine
+    TextToColumns_SpaceDelimiter
+    
+    ' Run the second subroutine 10 times
+    Dim i As Integer
+    For i = 1 To 10
+        SetRangeC1ToLastAndShiftLeft
+    Next i
+    
+        ' Run the second subroutine 5 times
+    For i = 1 To 5
+        SetRangeC1ToLastAndShiftLeft2
+    Next i
+    
+    FindAndReplaceWithHeaders
+    FindAVGAndBlankRowAbove
+    FindDayAndBlankRow2Above
+    FillBlankInColTWithA4
+    FindAVGAndBlankRow
+    FindAstricAndBlankRow
+    FindAstric2AndBlankRow
+    AddTwoColumnsInFront
+    FindDayAndPlaceMonthWithLoop
+    CopyMonthAndPasteMultipleMonths
+    CopyEachMonthDown
+    DeleteRowsWithBlankInColV
+    CopyA1DownUntilEndOfColB
+    FindMonthAndFillYear
+    SelectAllAndAdjustCenter
+    DeleteRowsBelowDecember31
+    
+    
+End Sub
+
+Sub TextToColumns_SpaceDelimiter()
+    Dim ws As Worksheet
+    Dim rng As Range
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Set the range (modify the range as needed)
+    Set rng = ws.Range("A:A") ' Change the range to your actual data range
+
+    ' Apply Text to Columns with space as the delimiter
+    rng.TextToColumns Destination:=rng, DataType:=xlDelimited, _
+                      TextQualifier:=xlDoubleQuote, ConsecutiveDelimiter:=False, _
+                      Tab:=False, Semicolon:=False, Comma:=False, Space:=True, _
+                      Other:=False
+End Sub
+
+Sub SetRangeC1ToLastAndShiftLeft()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim rng As Range
+    Dim i As Long, j As Long
+    
+    ' Set your worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last non-empty row in column C
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+    
+    ' Set the range from C1 to the last non-empty row in column C
+    Set rng = ws.Range("a1:a" & lastRow)
+    
+    ' Optional: Select the range
+    rng.Select
+    
+    ' Loop through each row from A1 to the last non-empty row in column A
+    For i = 1 To lastRow
+        ' Find the last column in the current row
+        lastCol = ws.Cells(i, ws.Columns.Count).End(xlToLeft).Column
+        
+        ' Loop through each cell in the current row from A to the last column
+        For j = 1 To lastCol
+            ' If the cell is empty, shift the cells to the left
+            If IsEmpty(ws.Cells(i, j)) Then
+                ws.Cells(i, j).Delete Shift:=xlToLeft
+            End If
+        Next j
+    Next i
+End Sub
+
+Sub SetRangeC1ToLastAndShiftLeft2()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim rng As Range
+    Dim i As Long, j As Long
+    
+    ' Set your worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last non-empty row in column C
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    
+    ' Set the range from C1 to the last non-empty row in column C
+    Set rng = ws.Range("a1:a" & lastRow)
+    
+    ' Optional: Select the range
+    rng.Select
+    
+    ' Loop through each row from A1 to the last non-empty row in column A
+    For i = 1 To lastRow
+        ' Find the last column in the current row
+        lastCol = ws.Cells(i, ws.Columns.Count).End(xlToLeft).Column
+        
+        ' Loop through each cell in the current row from A to the last column
+        For j = 1 To lastCol
+            ' If the cell is empty, shift the cells to the left
+            If IsEmpty(ws.Cells(i, j)) Then
+                ws.Cells(i, j).Delete Shift:=xlToLeft
+            End If
+        Next j
+    Next i
+End Sub
+
+
+
+
+
+Sub FindAndReplaceWithHeaders()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+    Dim headers As String
+    Dim headerArray() As String
+    
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+    
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    ' Define the header line
+    headers = "Day,AIR_TEMP_MX,AIR_TEMP_MN,AIR_TEMP_AV,DEW_PT,REL_HUM_MX,REL_HUM_MN,REL_HUM_AV,SOIL_T_4,SOIL_T_20,WIND_AV,WIND_MX,SOL,RAIN,Eto_AZ,Eto_STD,HEAT_UNITS_55,HEAT_UNITS_50,HEAT_UNITS_45,Station,County"
+    headerArray = Split(headers, ",") ' Split the header into an array
+
+    ' Loop through column A to find "---"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "---" Then
+            ' Replace the entire row with the header values
+            Dim i As Integer
+            For i = LBound(headerArray) To UBound(headerArray)
+                ws.Cells(cell.Row, i + 1).Value = headerArray(i)
+            Next i
+        End If
+    Next cell
+End Sub
+
+
+Sub FindAVGAndBlankRowAbove()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through column A to find "AVG"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "AVG" Then
+            ' Blank the entire row above "AVG"
+            If cell.Row > 1 Then
+                ws.Rows(cell.Row - 1).ClearContents
+            End If
+        End If
+    Next cell
+End Sub
+
+Sub FindDayAndBlankRow2Above()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through column A to find "Day"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "Day" Then
+            ' Blank the entire row above "AVG"
+            If cell.Row > 1 Then
+                ws.Rows(cell.Row - 1).ClearContents
+                ws.Rows(cell.Row - 2).ClearContents
+            End If
+        End If
+    Next cell
+End Sub
+
+
+Sub FillBlankInColTWithA4()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim copyValue As Variant
+
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+
+    ' Get the value from A4
+    copyValue = ws.Range("A4").Value
+
+    ' Find the last row in column T
+    lastRow = ws.Cells(ws.Rows.Count, "T").End(xlUp).Row
+
+    ' Loop through each row in column T
+    For i = 1 To lastRow
+        ' If the cell in column T is blank and the cell in column S (left) has a value
+        If ws.Cells(i, "T").Value = "" And ws.Cells(i, "S").Value <> "" Then
+            ' Copy the value from A4 to the blank cell in column T
+            ws.Cells(i, "T").Value = copyValue
+        End If
+    Next i
+End Sub
+
+Sub FindAVGAndBlankRow()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through column A to find "AVG"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "AVG" Then
+            ' Blank the entire row above "AVG"
+            If cell.Row > 1 Then
+                ws.Rows(cell.Row).ClearContents
+                ws.Rows(cell.Row + 1).ClearContents
+            End If
+        End If
+    Next cell
+End Sub
+
+Sub FindAstricAndBlankRow()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through column A to find "Astric"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "*" Then
+            ' Blank the entire row above "AVG"
+            If cell.Row > 1 Then
+                ws.Rows(cell.Row).ClearContents
+            End If
+        End If
+    Next cell
+End Sub
+
+
+Sub FindAstric2AndBlankRow()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim cell As Range
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column A
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    ' Loop through column A to find "Astric"
+    For Each cell In ws.Range("A1:A" & lastRow)
+        If cell.Value = "*****************************************************************************" Then
+            ' Blank the entire row above "AVG"
+            If cell.Row > 1 Then
+                ws.Rows(cell.Row).ClearContents
+            End If
+        End If
+    Next cell
+End Sub
+
+
+Sub AddTwoColumnsInFront()
+    Dim ws As Worksheet
+
+    ' Set the active worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Insert two columns at the beginning (before column A)
+    ws.Columns("A:B").Insert Shift:=xlToRight
+End Sub
+
+Sub FindDayAndPlaceMonthWithLoop()
+    Dim ws As Worksheet
+    Dim foundCell As Range
+    Dim firstAddress As String
+    Dim copyValue As Variant
+
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveSheet
+    
+    ' Get the value from cell D5 to copy
+    copyValue = ws.Range("D5").Value
+
+    ' Find the first occurrence of "Day" in column C
+    Set foundCell = ws.Columns("C").Find(What:="Day", LookIn:=xlValues, LookAt:=xlWhole, SearchOrder:=xlByRows)
+    
+    ' If "Day" is found
+    If Not foundCell Is Nothing Then
+        firstAddress = foundCell.Address ' Store the first address
+
+        Do
+            ' Place the word "Month" in the cell to the left (in column B)
+            foundCell.Offset(0, -1).Value = "Month"
+            
+            ' Place the value from D5 two cells to the left (in column A)
+            foundCell.Offset(0, -2).Value = copyValue
+            
+            ' Find the next occurrence of "Day"
+            Set foundCell = ws.Columns("C").FindNext(foundCell)
+
+        ' Continue looping until it comes back to the first occurrence
+        Loop While Not foundCell Is Nothing And foundCell.Address <> firstAddress
+    End If
+End Sub
+
+
+Sub CopyMonthAndPasteMultipleMonths()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim currentMonth As Variant ' Declare as Variant to avoid compile error
+    Dim targetColumn As Integer
+    Dim targetRow As Long
+    Dim months As Variant
+    Dim found As Boolean
+    
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column C
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+
+    ' Define the months to find
+    months = Array("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+    
+    ' Loop through column C to find any of the months
+    For i = 1 To lastRow
+        found = False
+        
+        ' Check if the current cell matches any of the months
+        For Each currentMonth In months
+            If ws.Cells(i, 3).Value = currentMonth Then
+                found = True
+                Exit For
+            End If
+        Next currentMonth
+        
+        ' If a month is found, copy and paste it 5 rows down and 1 column left
+        If found Then
+            targetRow = i + 5
+            targetColumn = 2 ' One column left from C is B
+            
+            ' Copy the month and paste in the new position
+            ws.Cells(targetRow, targetColumn).Value = ws.Cells(i, 3).Value
+        End If
+    Next i
+End Sub
+
+
+Sub CopyEachMonthDown()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim monthValue As String
+    Dim startRow As Long
+    Dim endRow As Long
+    
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column C (where the data ends)
+    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
+
+    ' Set the starting row for the months in column B (first month location)
+    startRow = 6 ' Adjust based on where the first "January" appears
+    
+    ' Loop through each row in column B to find the months
+    For i = startRow To lastRow
+        If ws.Cells(i, 2).Value <> "" Then
+            ' Capture the current month value from Column B
+            monthValue = ws.Cells(i, 2).Value
+            ' Find where to paste (until the next non-empty cell in Column B or until last row)
+            endRow = i + 1
+            Do While ws.Cells(endRow, 2).Value = "" And endRow <= lastRow
+                ws.Cells(endRow, 2).Value = monthValue
+                endRow = endRow + 1
+            Loop
+        End If
+    Next i
+End Sub
+
+
+Sub DeleteRowsWithBlankInColV()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column V
+    lastRow = ws.Cells(ws.Rows.Count, "V").End(xlUp).Row
+
+    ' Loop through rows from the last row to the first row
+    ' Deleting from the bottom-up prevents row shifting issues
+    For i = lastRow To 1 Step -1
+        If ws.Cells(i, 22).Value = "" Then ' Column V is the 22nd column
+            ws.Rows(i).Delete
+        End If
+    Next i
+End Sub
+
+Sub CopyA1DownUntilEndOfColB()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim valueToCopy As String
+    
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Get the value in A1
+    valueToCopy = ws.Range("A1").Value
+
+    ' Find the last row in column B (end of the table based on Column B)
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+
+    ' Copy the value from A1 down to the last row in column A
+    ws.Range("A2:A" & lastRow).Value = valueToCopy
+End Sub
+
+Sub FindMonthAndFillYear()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    ' Set the worksheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Find the last row in column B
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+
+    ' Loop through each cell in column B to find "Month"
+    For i = 1 To lastRow
+        If ws.Cells(i, 2).Value = "Month" Then
+            ' Fill the cell to the left in column A with "Year"
+            ws.Cells(i, 1).Value = "Year"
+        End If
+    Next i
+End Sub
+
+
+
+Sub SelectAllAndAdjustCenter()
+    Dim ws As Worksheet
+
+    ' Set the worksheet to the active sheet
+    Set ws = ActiveWorkbook.ActiveSheet
+
+    ' Select all cells in the worksheet
+    ws.Cells.Select
+
+    ' Auto-fit all columns
+    ws.Columns.AutoFit
+
+    ' Center the content horizontally and vertically in all cells
+    With Selection
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlCenter
+    End With
+End Sub
+
+Sub DeleteRowsBelowDecember31()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+
+    Set ws = ActiveWorkbook.ActiveSheet
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+
+    For i = 1 To lastRow
+        If ws.Cells(i, 2).Value = "December" And ws.Cells(i, 3).Value = "31" Then
+            ws.Rows(i + 1 & ":" & lastRow).Delete
+            Exit For
+        End If
+    Next i
+End Sub
